@@ -1,0 +1,229 @@
+
+* Contents
+:PROPERTIES:
+:TOC:      :include all
+:END:
+
+:CONTENTS:
+- [[#contents][Contents]]
+- [[#motivation][Motivation]]
+- [[#core-api-for-using-as-a-shadowing-package][Core API for using as a shadowing package]]
+- [[#additional-tools][Additional tools]]
+- [[#extensible-compound-types-api][Extensible Compound Types API]]
+- [[#needs-more-work][Needs more work]]
+- [[#internal-discussion][Internal Discussion]]
+  - [[#usage-api][Usage API]]
+  - [[#shadowing-cl-package][Shadowing CL package]]
+  - [[#handling-parametric-types][Handling parametric types]]
+  - [[#integration-with-cltype-declarations][Integration with CL:TYPE declarations]]
+  - [[#subtypep][subtypep]]
+    - [[#if-two-types-are-such-that-one-type-has-a-greater-number-of-specified-parameters-than-another-then-should-that-mean-first-is-more-specialized-than-second][If two types are such that one type has a greater number of specified parameters than another, then should that mean first is more specialized than second?]]
+    - [[#what-should-the-relations-between-two-compound-types-corresponding-to-subclass-and-superclass][What should the relations between two compound types corresponding to subclass and superclass?]]
+  - [[#simplify-type-aka-typexpand][simplify-type aka typexpand]]
+  - [[#only-specialized-types-or-more-general-compound-types-like-type-type][Only specialized types, or more general compound types like (type= type)?]]
+  - [[#comparison-with-cl-parametric-types][Comparison with cl-parametric-types]]
+  - [[#comparison-with-ctype][Comparison with ctype]]
+:END:
+
+
+* Motivation
+
+#+BEGIN_QUOTE
+=extensible-compound-types= allow for the definition of user-defined [[http://www.lispworks.com/documentation/lw70/CLHS/Body/26_glo_c.htm#compound_type_specifier][compound-types]]. These work well with respect to type safety, but may not work well with respect to optimization.
+
+#+END_QUOTE
+
+
+Common Lisp has a rich (although not the richest :/) type system allowing for the combination of types using =not and or member values=, specifying =eql= types, or even completely arbitrary types using =satisfies=. 
+
+Through [[http://www.lispworks.com/documentation/lw70/CLHS/Body/26_glo_c.htm#compound_type_specifier][compound-types]], it even allows for specification of the exact integer or float through =(num-type low high)=, or the exact dimensions of a vector or array through =(array-type element-type rank/dimensions)=. One, this allows for compilers to type-check the code besides enhancing readability, and two, it allows them to optimize it. However, CLHS provided compound types have the limitation prohibiting one from cleanly defining user-defined compound-types. Such types could include a =(equalp object)= type, a ~(type= type)~ , or a =(pair type-1 type-2)= type, or =(custom-array element-type dimensions)=. The most one can do is play around with =satisfies= types. However, not only do =satisfies= types not integrate well into the type system, but they are restricted to single argument functions that only take the object to be type-checked as its argument.
+
+=extensible-compound-types= allow for the definition of user-defined compound types. Unfortunately, this requires nothing less than shadowing the symbols in the CL package, since, one,
+
+#+BEGIN_QUOTE
+The consequences are undefined if decl-name is a symbol that can appear as the car of any standard declaration specifier.
+
+The consequences are also undefined if the return value from a declaration handler defined with define-declaration includes a key name that is used by the corresponding accessor to return information about any standard declaration specifier. (For example, if the first return value from the handler is :variable, the second return value may not use the symbols dynamic-extent, ignore, or type as key names.)
+
+-- [[https://www.cs.cmu.edu/Groups/AI/html/cltl/clm/node102.html][8.5 Environments, Common Lisp the Language, 2nd Edition]]
+#+END_QUOTE
+
+And two, one needs to convert the declarations into a type-check statement for purposes of correctness.
+
+* Core API for using as a shadowing package
+
+- typep
+- subtypep
+- deftype
+- check-type
+- the
+- unknown-type-specifier
+
+* Additional tools
+
+- undeftype
+- typexpand-1
+- typexpand
+- typexpand-all
+- supertypep
+- =*the-skip-predicates*=
+
+* Extensible Compound Types API
+
+- define-compound-type
+- undefine-compound-type
+- define-type-expander
+- %upgraded-cl-type
+- %subtypep
+- extype
+
+Compound Types can be defined by first defining the =typep= part using =define-compound-type=. To actually use this type in a =(typep ...)= form, one also needs to define the behavior of =typexpand=  and =typexpand-1= using =define-type-expander=.
+
+Further, to use this type in a =(declare (extype ...))= declaration, one also needs to define the ANSI CL counterpart of the closest supertype of the given by specializing the =%upgraded-cl-type= generic-function. To play nice with =subtypep=, one needs to specialize the =%subtypep= generic-function. 
+
+#+BEGIN_SRC lisp
+  (uiop:define-package extensible-compound-types-demo
+    (:mix :extensible-compound-types :extensible-compound-types-cl :cl))
+
+  (in-package :extensible-compound-types-demo)
+
+  (define-compound-type integer-multiples (object n)
+    (and (numberp object)
+         (zerop (rem object n))))
+
+  (define-type-expander integer-multiples (&whole form n)
+    (declare (ignore n))
+    form)
+
+  (typep 5 '(integer-multiples 3)) ;=> NIL
+  (typep 6 '(integer-multiples 3)) ;=> T
+
+  (cl:defmethod %upgraded-cl-type ((name (eql 'integer-multiples)) type &optional env)
+    (declare (ignore name env))
+    'integer)
+
+  (disassemble (lambda (x)
+                 (declare (optimize speed)
+                          (extype (integer-multiples 3) x))
+                 x))
+  ; disassembly for (COMMON-LISP:LAMBDA (X))
+  ; Size: 10 bytes. Origin: #x539A6051                          ; (COMMON-LISP:LAMBDA
+                                                                      (X))
+  ; 1:       488BE5           MOV RSP, RBP
+  ; 4:       F8               CLC
+  ; 5:       5D               POP RBP
+  ; 6:       C3               RET
+  ; 7:       CC10             INT3 16                           ; Invalid argument count trap
+  ; 9:       CC10             INT3 16                           ; Invalid argument count trap
+
+;; TODO: Add SUBTYPEP example
+#+END_SRC
+
+More examples for this can be found in the [[file:cl-compound-types.lisp][cl-compound-types.lisp]].
+
+- TODO: Document shadowing CL package
+
+* TODO Needs more work 
+
+- typelet
+- typelet*
+- compiler macro for typep
+- Specifying better predicates for =*the-skip-predicates*=
+
+** Parametric Types
+
+#+BEGIN_SRC lisp
+(defstruct pair a b)
+
+(define-compound-type pair (o &optional (type-a 'cl:*) (type-b 'cl:*))
+  (and (cl:typep o 'pair)
+       (with-slots (a b) o
+         (and (if (eq 'cl:* type-a)
+                  t
+                  (cl:typep a type-a))
+              (if (eq 'cl:* type-b)
+                  t
+                  (cl:typep b type-b))))))
+
+(define-type-expander pair (&optional (type-a 'cl:*) (type-b 'cl:*))
+  (let ((type-a-p (not (eq 'cl:* type-a)))
+        (type-b-p (not (eq 'cl:* type-b))))
+    (cond ((and type-a-p type-b-p)
+           `(pair ,(typexpand-1 type-a)
+                  ,(typexpand-1 type-b)))
+          (type-a-p
+           `(pair ,(typexpand-1 type-a)))
+          (type-b-p
+           `(pair cl:* ,(typexpand-1 type-b)))
+          (t
+           '(pair)))))
+#+END_SRC
+  
+* Internal Discussion
+
+** Usage API
+
+- cl-shadowing package: This should not do type-declaration-upgradation. This was an option earlier, because "why not". However, this cannot be done, because the part on type-declaration-upgradation can wreak havoc on user's expectations. For instance, below, one might expect =foo-caller= to compile successfully, but it does not:
+
+  #+BEGIN_SRC lisp
+    (define-polymorphic-function foo (a) :overwrite t)
+
+    (defpolymorph foo ((x number)) number
+      (setq x (coerce x 'single-float))
+      (cl:+ x x))
+
+    (defun foo-caller (b)
+      (declare (optimize speed)
+               (type fixnum b))
+      (foo b))
+  #+END_SRC
+
+
+** Shadowing CL package
+
+DEFAULT-THE-SKIP-PREDICATE
+
+- Call a function TYPE-SAFE, if its guaranteed that at runtime, its arguments are of the type given by the compile time declarations, as well as the return values are of the appropriate types declared at compile time.
+- Such TYPE-SAFE functions do not need a runtime type check, if its arguments are pre-tested to be of the appropriate types.
+- Functions made by composing type-safe functions are type-safe. That is they do not require type checks. /(What is composing?)/
+
+- Suppose we have a core set of type-safe functions. Then, functions that call these functions need not do any type checking of the return-values of the type-safe functions, if the declared return-types are a subtype of the caller's arguments parameter-type declarations.
+
+** Handling parametric types
+- unspecified parameters
+- upgrading to non-parametric type
+
+** Integration with CL:TYPE declarations
+- Full typexpansion should produce CL:TYPE wherever possible for optimization purposes; TODO: specify "wherever possible".
+- Should expand into CHECK-TYPE statements; CHECK-TYPE should not be redundant.
+- If =:extensible-compound-types= in =cl:*features*=, then shadow =cl:type=.
+
+- Do we reimplement /all/ the cl types listed on http://www.lispworks.com/documentation/lw70/CLHS/Body/04_bc.htm?
+
+** subtypep
+
+*** If two types are such that one type has a greater number of specified parameters than another, then should that mean first is more specialized than second?
+
+No, because we also want to allow for types like ~(type= /type/)~.
+
+*** What should the relations between two compound types corresponding to subclass and superclass?
+
+Nothing. We are not implementing parametric types. We are implementing compound types.
+
+** simplify-type aka typexpand
+
+Might need to export =type-expander= and =(setf type-expander)= functionality.
+
+** Only specialized types, or more general compound types like ~(type= /type/)~?
+
+Allow for more general compound types.
+
+** Comparison with cl-parametric-types
+
+https://github.com/cosmos72/cl-parametric-types
+
+We allow for more general types like ~(type= /type/)~.
+
+** Comparison with ctype
+
+Faster =typep= due to avoidance of =specifier-type=. TODO: Measure
