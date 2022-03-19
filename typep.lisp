@@ -38,6 +38,10 @@
           (setf (gethash type *compound-type-lambda-expressions*) lambda)
           (setf (gethash (first type) *compound-type-lambda-expressions*) lambda))))
 
+(defun compound-type-nonexpander (expr env)
+  (declare (ignore env))
+  expr)
+
 (defmacro define-compound-type (name (object-name &rest lambda-list) &body body)
   "EXTENSIBLE-COMPOUND-TYPES:TYPEP relies on these whenever TYPE supplied is non-atomic.
 FIXME: Should also rely on them when atomic, since FIXNUM type is atomic"
@@ -45,7 +49,8 @@ FIXME: Should also rely on them when atomic, since FIXNUM type is atomic"
      (setf (compound-type-lambda-expression ',name)
            '(lambda (,object-name ,@lambda-list) ,@body))
      (setf (compound-type-lambda ',name)
-           (lambda (,object-name ,@lambda-list) ,@body))))
+           (lambda (,object-name ,@lambda-list) ,@body))
+     (setf (type-expander ',name) 'compound-type-nonexpander)))
 (defun undefine-compound-type (name)
   (setf (compound-type-lambda-expression name) nil)
   (setf (compound-type-lambda name) nil))
@@ -127,16 +132,6 @@ FIXME: Should also rely on them when atomic, since FIXNUM type is atomic"
                     (with-slots (a b) o
                       (and (cl:typep a type-a)
                            (cl:typep b type-b)))))
-             (define-type-expander pair (&optional (type-a nil type-a-p) (type-b nil type-b-p))
-               (cond ((and type-a-p type-b-p)
-                      `(pair ,(typexpand-1 type-a)
-                             ,(typexpand-1 type-b)))
-                     (type-a-p
-                      `(pair ,(typexpand-1 type-a)))
-                     (type-b-p
-                      `(pair cl:* ,(typexpand-1 type-b)))
-                     (t
-                      '(pair))))
              (5am:is-true  (typep (make-pair) 'pair))
              (5am:is-true  (typep (make-pair) '(pair)))
              (5am:is-true  (typep (make-pair :a 42 :b "hello") '(pair)))

@@ -3,7 +3,6 @@
   (:export #:deftype
            #:undeftype
 
-           #:define-type-expander
            #:typexpand-1
            #:typexpand
            #:typexpand-all
@@ -97,13 +96,6 @@
       (setf (gethash name *type-expanders*) lambda)
       (remhash name *type-expanders*)))
 
-(defmacro define-type-expander (name lambda-list &body body &environment env)
-  "Used by TYPEXPAND-1 and TYPEXPAND to expand the types.
-These in turn are used by TYPEP and SUBTYPEP."
-  `(eval-when (:compile-toplevel :load-toplevel :execute)
-     (setf (type-expander ',name)
-           ,(parse-macro name lambda-list body env))))
-
 (defmacro deftype (name lambda-list &body body &environment env)
   "Useful for defining type aliases, example: (DEFTYPE INT32 () '(SIGNED-BYTE 32))"
   `(eval-when (:compile-toplevel :load-toplevel :execute)
@@ -118,7 +110,6 @@ These in turn are used by TYPEP and SUBTYPEP."
   `(eval-when (:compile-toplevel :load-toplevel :execute)
      (setf (type-expander ',name) nil)))
 
-;; FIXME: Semantics of typexpand-1, typexpand, typexpand-all
 (defun typexpand-1 (type &optional env)
   "Returns two values: EXPANSION and EXPANDEDP"
   (let* ((atomp (atom type))

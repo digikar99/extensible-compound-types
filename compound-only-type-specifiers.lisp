@@ -11,9 +11,6 @@
     `(cl:and ,@(loop :for type-specifier-form :in type-specifier-forms
                      :collect `(typep ,o-form ,type-specifier-form)))))
 
-(define-type-expander and (&rest type-specifiers)
-  (cons 'and (mapcar #'typexpand type-specifiers)))
-
 (defun flatten-type-specifier-combination (combination type-specifier &optional env)
   (flet ((typexpand-may-be (type-specifier)
            (if (atom type-specifier)
@@ -88,28 +85,15 @@
     `(cl:or ,@(loop :for type-specifier-form :in type-specifier-forms
                     :collect `(typep ,o-form ,type-specifier-form)))))
 
-(define-type-expander or (&rest type-specifiers)
-  (cons 'or (mapcar #'typexpand type-specifiers)))
-
 (define-compound-type eql (o object)
   (cl:eql o object))
-(define-type-expander eql (&whole form object)
-  (declare (ignore object))
-  form)
 
 (define-compound-type member (o &rest objects)
   (member o objects :test #'cl:eql))
-(define-type-expander member (&whole form &rest objects)
-  (declare (ignore objects))
-  form)
 
 (define-compound-type not (o typespec)
   (not (typep o typespec)))
-(define-type-expander not (typespec)
-  `(not ,(typexpand-1 typespec)))
 
 (define-compound-type satisfies (o predicate-name)
   (funcall (fdefinition predicate-name) o))
-(define-type-expander satisfies (&whole form predicate-name)
-  (declare (ignore predicate-name))
-  form)
+

@@ -1,7 +1,6 @@
 (in-package :extensible-compound-types.impl)
 
 (define-compound-type base-char (o) (cl:typep o 'base-char))
-(define-type-expander base-char () 'base-char)
 
 (macrolet ((def (type)
              `(progn
@@ -19,10 +18,7 @@
                               (cl:check-type upper-limit ,type)
                               (cl:<= (cl:the ,type lower-limit)
                                      o
-                                     (cl:the ,type upper-limit))))))
-                (define-type-expander ,type (&whole form &rest args)
-                  (declare (ignore args))
-                  form))))
+                                     (cl:the ,type upper-limit)))))))))
   ;; On SBCL, about 3-6 times faster than "completely reducing to CL:TYPE check as below"
 
   ;; TODO: Can this be simplified?
@@ -68,10 +64,6 @@
             ,(if (eq 'cl:* typespec)
                  t
                  `(typep (realpart ,o) ',type))))))
-(define-type-expander complex (&optional (typespec 'cl:*))
-  (if (eq 'cl:* typespec)
-      'complex
-      `(complex ,(typexpand-1 (upgraded-complex-part-type typespec)))))
 
 (deftype rational (&optional (lower-limit 'cl:*) (upper-limit 'cl:*))
   `(and (real ,lower-limit ,upper-limit)
@@ -111,13 +103,7 @@
                                        :for d2 :in (array-dimensions o)
                                        :always (or (eq 'cl:* d1)
                                                    (= (the fixnum d1)
-                                                      (the fixnum d2)))))))))
-                (define-type-expander ,type (&whole form
-                                                    &optional (element-type 'cl:*)
-                                                    dimension-spec)
-                  (if (eq 'cl:* element-type)
-                      form
-                      `(,',type ,(typexpand-1 element-type) ,dimension-spec))))))
+                                                      (the fixnum d2))))))))))))
   (def array)
   (def simple-array))
 
@@ -150,23 +136,10 @@
            (typep (car o) car-typespec))
        (or (eq 'cl:* cdr-typespec)
            (typep (cdr o) cdr-typespec))))
-(define-type-expander cons (&optional (car-typespec 'cl:*) (cdr-typespec 'cl:*))
-  (cond ((and (eq 'cl:* car-typespec)
-              (eq 'cl:* cdr-typespec))
-         'cons)
-        ((eq 'cl:* car-typespec)
-         `(cons cl:* ,(typexpand-1 cdr-typespec)))
-        ((eq 'cl:* cdr-typespec)
-         `(cons ,(typexpand-1 car-typespec)))
-        (t
-         `(cons ,(typexpand-1 car-typespec) ,(typexpand-1 cdr-typespec)))))
 
 (define-compound-type function (o &optional arg-typespec value-typespec)
   (declare (ignore arg-typespec value-typespec))
   (functionp o))
-(define-type-expander function (&whole form &optional arg-typespec value-typespec)
-  ;; FIXME: This is incomplete
-  form)
 
 ;; (macrolet ((def (type)
 ;;              `(progn
@@ -176,10 +149,7 @@
 ;;                        (or (eq 'cl:* size)
 ;;                            (progn
 ;;                              (cl:check-type size non-negative-fixnum)
-;;                              (= size (length o))))))
-;;                 (define-type-expander ,type (&whole form &optional (size 'cl:*))
-;;                   (declare (ignore size))
-;;                   form))))
+;;                              (= size (length o)))))))))
 ;;   (def string)
 ;;   (def simple-string))
 ;; (define-compound-type string (o &optional (size 'cl:*))
@@ -189,9 +159,6 @@
 ;;            (progn
 ;;              (cl:check-type size non-negative-fixnum)
 ;;              (= size (length o))))))
-;; (define-type-expander string (&whole form &optional (size 'cl:*))
-;;   (declare (ignore size))
-;;   form)
 
 ;; (defun my-type-p (o type)
 ;;   (cl:typep o type))

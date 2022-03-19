@@ -72,51 +72,46 @@ And two, one needs to convert the declarations into a type-check statement for p
 
 - define-compound-type
 - undefine-compound-type
-- define-type-expander
 - %upgraded-cl-type
 - %subtypep
 - extype
 
-Compound Types can be defined by first defining the =typep= part using =define-compound-type=. To actually use this type in a =(typep ...)= form, one also needs to define the behavior of =typexpand=  and =typexpand-1= using =define-type-expander=.
+Compound Types can be defined by first defining the =typep= part using =define-compound-type=.
 
-Further, to use this type in a =(declare (extype ...))= declaration, one also needs to define the ANSI CL counterpart of the closest supertype of the given by specializing the =%upgraded-cl-type= generic-function. To play nice with =subtypep=, one needs to specialize the =%subtypep= generic-function. 
+To use this type in a =(declare (extype ...))= declaration, one also needs to define the ANSI CL counterpart of the closest supertype of the given by specializing the =%upgraded-cl-type= generic-function. To play nice with =subtypep=, one needs to specialize the =%subtypep= generic-function. 
 
 #+BEGIN_SRC lisp
-  (uiop:define-package extensible-compound-types-demo
-    (:mix :extensible-compound-types :extensible-compound-types-cl :cl))
+    (uiop:define-package extensible-compound-types-demo
+      (:mix :extensible-compound-types :extensible-compound-types-cl :cl))
 
-  (in-package :extensible-compound-types-demo)
+    (in-package :extensible-compound-types-demo)
 
-  (define-compound-type integer-multiples (object n)
-    (and (numberp object)
-         (zerop (rem object n))))
+    (define-compound-type integer-multiples (object n)
+      (and (numberp object)
+           (zerop (rem object n))))
 
-  (define-type-expander integer-multiples (&whole form n)
-    (declare (ignore n))
-    form)
+    (typep 5 '(integer-multiples 3)) ;=> NIL
+    (typep 6 '(integer-multiples 3)) ;=> T
 
-  (typep 5 '(integer-multiples 3)) ;=> NIL
-  (typep 6 '(integer-multiples 3)) ;=> T
+    (cl:defmethod %upgraded-cl-type ((name (eql 'integer-multiples)) type &optional env)
+      (declare (ignore name env))
+      'integer)
 
-  (cl:defmethod %upgraded-cl-type ((name (eql 'integer-multiples)) type &optional env)
-    (declare (ignore name env))
-    'integer)
+    (disassemble (lambda (x)
+                   (declare (optimize speed)
+                            (extype (integer-multiples 3) x))
+                   x))
+    ; disassembly for (COMMON-LISP:LAMBDA (X))
+    ; Size: 10 bytes. Origin: #x539A6051                          ; (COMMON-LISP:LAMBDA
+    ;                                                                   (X))
+    ; 1:       488BE5           MOV RSP, RBP
+    ; 4:       F8               CLC
+    ; 5:       5D               POP RBP
+    ; 6:       C3               RET
+    ; 7:       CC10             INT3 16                           ; Invalid argument count trap
+    ; 9:       CC10             INT3 16                           ; Invalid argument count trap
 
-  (disassemble (lambda (x)
-                 (declare (optimize speed)
-                          (extype (integer-multiples 3) x))
-                 x))
-  ; disassembly for (COMMON-LISP:LAMBDA (X))
-  ; Size: 10 bytes. Origin: #x539A6051                          ; (COMMON-LISP:LAMBDA
-                                                                      (X))
-  ; 1:       488BE5           MOV RSP, RBP
-  ; 4:       F8               CLC
-  ; 5:       5D               POP RBP
-  ; 6:       C3               RET
-  ; 7:       CC10             INT3 16                           ; Invalid argument count trap
-  ; 9:       CC10             INT3 16                           ; Invalid argument count trap
-
-;; TODO: Add SUBTYPEP example
+  ;; TODO: Add SUBTYPEP example
 #+END_SRC
 
 More examples for this can be found in the [[file:cl-compound-types.lisp][cl-compound-types.lisp]].
