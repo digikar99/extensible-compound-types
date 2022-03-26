@@ -47,11 +47,9 @@ predicate in *THE-SKIP-PREDICATES* returns non-NIL."
 ;;; using compound types as parametric-types.
 
 (defun subtypep (type1 type2 &optional environment)
-  "Behaves like CL:SUBTYPEP when type1 and type2 are atomic type specifiers,
-but when either is a list, calls the generic-function %SUBTYPEP to determine
-the SUBTYPEP relation.
-
-%SUBTYPEP is also called when CL:SUBTYPEP returns NIL as the second value."
+  "Behaves like CL:SUBTYPEP when type1 and type2 are atomic type
+specifiers, corresponding to a CLASS; but when either is a list, calls
+the generic-function %SUBTYPEP to determine the SUBTYPEP relation."
   (let* ((type1 (typexpand type1 environment))
          (type2 (typexpand type2 environment))
          (atom1p  (atom type1))
@@ -65,6 +63,8 @@ the SUBTYPEP relation.
           ;; ((and (eq nil type2)
           ;;       (not (eq nil type1)))
           ;;  (values nil t))
+          ((equalp type1 type2)
+           (values t t))
           ((and class1p (or class2p (eql nil type2)))
            (cl:subtypep type1 type2 environment))
           (t
@@ -147,6 +147,12 @@ TODO: Improve documentation for this."
              (%intersect-type-p type1-name type2-name type1 type2 env))))))
 
 (defgeneric %intersect-type-p (type1-name type2-name type1 type2 &optional env))
+
+(defmethod %intersect-type-p (type1-name type2-name type1 type2 &optional env)
+  (declare (ignore type1-name type2-name env))
+  (if (equalp type1 type2)
+      (values t t)
+      (values nil nil)))
 
 (defun intersection-null-p (env &rest type-specifiers)
   (loop :for (type1 . rest) :on type-specifiers

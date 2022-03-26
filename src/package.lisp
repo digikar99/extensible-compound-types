@@ -131,15 +131,19 @@
   "Returns two values: EXPANSION and EXPANDEDP"
   (let* ((atomp (atom type))
          (type-name (if (atom type) type (car type)))
-         (classp (and atomp (find-class type-name nil env))))
-    (cond (classp
+         (classp (and atomp (find-class type-name nil env)))
+         (expander (ignore-some-conditions (unknown-type-specifier)
+                     (type-expander type-name))))
+    (cond (expander
+           (funcall expander
+                    (if atomp (list type) type)
+                    env))
+          (classp
            type)
           ((null type)
            nil)
           (t
-           (funcall (type-expander type-name)
-                    (if atomp (list type) type)
-                    env)))))
+           (error "Unhandled case!")))))
 
 (defun typexpand (type &optional env)
   (let ((expansion (typexpand-1 type env)))

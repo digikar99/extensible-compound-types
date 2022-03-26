@@ -140,4 +140,44 @@
   (values (every (lambda (obj) (typep obj type2 env)) (rest type1))
           t))
 
+(defmethod %subtypep ((t1 (eql 'array)) (t2 (eql 'array)) type1 type2 &optional env)
+  (declare (ignore t1 t2 env))
+  (labels ((dim-subtype-p (dim1 dim2)
+             (cond ((and (atom dim1) (atom dim2))
+                    (or (eq dim2 'cl:*)
+                        (= dim1 dim2)))
+                   ((and (atom dim2) (eq dim2 'cl:*))
+                    t)
+                   ((atom dim1)
+                    nil)
+                   ((= (length dim1) (length dim2))
+                    (every #'dim-subtype-p dim1 dim2))
+                   (t
+                    nil))))
+    (destructuring-bind (&optional (elt1 'cl:*) (dim1 'cl:*)) (rest type1)
+      (destructuring-bind (&optional (elt2 'cl:*) (dim2 'cl:*)) (rest type2)
+        (let ((dim-subtype-p (dim-subtype-p dim1 dim2)))
+          (cond ((and (eq 'cl:* elt1) (eq 'cl:* elt2))
+                 (values dim-subtype-p t))
+                ((eq 'cl:* elt1)
+                 ;; TYPE1 is specific; TYPE2 is not
+                 (values nil t))
+                ((eq 'cl:* elt2)
+                 (values dim-subtype-p t))
+                ((type= (second type1) (second type2))
+                 (values dim-subtype-p t))
+                (t
+                 (values nil t))))))))
+
+(defmethod %subtypep ((t1 (eql 'array)) (t2 (eql 'simple-array)) type1 type2 &optional env)
+  (declare (ignore t1 t2 type1 type2 env))
+  (values nil t))
+
+(defmethod %subtypep ((t1 (eql 'simple-array)) (t2 (eql 'array)) type1 type2 &optional env)
+  (declare (ignore t1 t2))
+  (%subtypep 'array 'array `(array ,@(rest type1)) `(array ,@(rest type2)) env))
+
+(defmethod %subtypep ((t1 (eql 'simple-array)) (t2 (eql 'simple-array)) type1 type2 &optional env)
+  (declare (ignore t1 t2))
+  (%subtypep 'array 'array `(array ,@(rest type1)) `(array ,@(rest type2)) env))
 

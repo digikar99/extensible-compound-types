@@ -146,7 +146,13 @@
        (eq (find-package :keyword)
            (symbol-package o))))
 
+(define-compound-type base-char (o) (cl:typep o 'base-char))
+
 (deftype boolean () `(member t nil))
+
+#+sbcl
+(define-compound-type sb-kernel:extended-sequence (o)
+  (cl:typep o 'sb-kernel:extended-sequence))
 
 ;; (macrolet ((def (type)
 ;;              `(progn

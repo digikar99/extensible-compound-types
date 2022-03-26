@@ -84,35 +84,36 @@ Compound Types can be defined by first defining the =typep= part using =define-c
 To use this type in a =(declare (extype ...))= declaration, one also needs to define the ANSI CL counterpart of the closest supertype of the given by specializing the =%upgraded-cl-type= generic-function. To play nice with =subtypep=, one needs to specialize the =%subtypep= generic-function. 
 
 #+BEGIN_SRC lisp
-    (uiop:define-package extensible-compound-types-demo
-      (:mix :extensible-compound-types :extensible-compound-types-cl :cl))
+  (defpackage extensible-compound-types-demo
+    (:use :extensible-compound-types-cl))
 
-    (in-package :extensible-compound-types-demo)
+  (in-package :extensible-compound-types-demo)
 
-    (define-compound-type integer-multiples (object n)
-      (and (numberp object)
-           (zerop (rem object n))))
+  (define-compound-type integer-multiples (object n)
+    (and (numberp object)
+         (zerop (rem object n))))
 
-    (typep 5 '(integer-multiples 3)) ;=> NIL
-    (typep 6 '(integer-multiples 3)) ;=> T
+  (typep 5 '(integer-multiples 3)) ;=> NIL
+  (typep 6 '(integer-multiples 3)) ;=> T
 
-    (cl:defmethod %upgraded-cl-type ((name (eql 'integer-multiples)) type &optional env)
-      (declare (ignore name env))
-      'integer)
+  (cl:defmethod %upgraded-cl-type ((name (eql 'integer-multiples)) type &optional env)
+    (declare (ignore name env))
+    'integer)
 
-    (disassemble (lambda (x)
-                   (declare (optimize speed)
-                            (extype (integer-multiples 3) x))
-                   x))
-    ; disassembly for (COMMON-LISP:LAMBDA (X))
-    ; Size: 10 bytes. Origin: #x539A6051                          ; (COMMON-LISP:LAMBDA
-    ;                                                                   (X))
-    ; 1:       488BE5           MOV RSP, RBP
-    ; 4:       F8               CLC
-    ; 5:       5D               POP RBP
-    ; 6:       C3               RET
-    ; 7:       CC10             INT3 16                           ; Invalid argument count trap
-    ; 9:       CC10             INT3 16                           ; Invalid argument count trap
+  (disassemble (lambda (x)
+                 (declare (optimize speed)
+                          (extype (integer-multiples 3) x))
+                 x))
+  ; disassembly for (COMMON-LISP:LAMBDA (X) :IN "/tmp/slime4RHup6")
+  ; Size: 8 bytes. Origin: #x53AC4830                           ; (COMMON-LISP:LAMBDA
+                                                                      (X)
+                                                                    :IN
+                                                                    "/tmp/slime4RHup6")
+  ; 0:       488BE5           MOV RSP, RBP
+  ; 3:       F8               CLC
+  ; 4:       5D               POP RBP
+  ; 5:       C3               RET
+  ; 6:       CC10             INT3 16                           ; Invalid argument count trap
 
   ;; TODO: Add SUBTYPEP example
 #+END_SRC
@@ -126,6 +127,13 @@ More examples for this can be found in the [[file:cl-compound-types.lisp][cl-com
 Combined with [[https://github.com/digikar99/polymorphic-functions/][polymorphic-functions]], one can create a wrapper around =extensible-compound-types= as follows:
 
 #+BEGIN_SRC lisp
+  (ql:quickload "polymorphic-functions+extensible-compound-types")
+
+  (cl:defpackage parametric-types-demo
+    (:use :extensible-compound-types-cl :polymorphic-functions))
+
+  (in-package :parametric-types-demo)
+
   (defstruct pair a b)
 
   (define-compound-type pair (o &optional (type-a 'cl:*) (type-b 'cl:*))
@@ -143,7 +151,7 @@ Combined with [[https://github.com/digikar99/polymorphic-functions/][polymorphic
     name)
 
   (defmethod %subtypep ((t1 (eql 'pair)) (t2 (eql 'pair)) type1 type2 &optional env)
-    (declare (ignore t1 t2))
+    (declare (ignore t1 t2 env))
     (destructuring-bind (&optional (t1a 'cl:*) (t1b 'cl:*)) (rest type1)
       (destructuring-bind (&optional (t2a 'cl:*) (t2b 'cl:*)) (rest type2)
         ;; FIXME: This does not look exhaustive
@@ -184,12 +192,20 @@ Combined with [[https://github.com/digikar99/polymorphic-functions/][polymorphic
                 (t
                  (error "Unknown case"))))))
 
-  (define-polymorphic-function slot-a (object) :overwrite t)
-  (defpolymorph slot-a ((o (pair <a> <b>))) <a>
-    (pair-a o))
-  (define-polymorphic-function slot-b (object) :overwrite t)
-  (defpolymorph slot-b ((o (pair <a> <b>))) <b>
-    (pair-b o))
+  (let ((*parametric-type-symbol-predicates*
+          (list (lambda (s)
+                  (let* ((name (symbol-name s))
+                         (len  (length name)))
+                    (and (char= #\< (elt name 0))
+                         (char= #\> (elt name (1- len)))))))))
+    (eval `(progn
+             (define-polymorphic-function slot-a (object) :overwrite t)
+             (defpolymorph slot-a ((o (pair <a> <b>))) <a>
+               (pair-a o))
+             (define-polymorphic-function slot-b (object) :overwrite t)
+             (defpolymorph slot-b ((o (pair <a> <b>))) <b>
+               (pair-b o)))))
+
 
   (disassemble (lambda (o)
                  (declare (extype (pair fixnum fixnum) o)
@@ -197,6 +213,19 @@ Combined with [[https://github.com/digikar99/polymorphic-functions/][polymorphic
                  (cl:+ (pair-a o)
                        (pair-b o))))
   ;=> On SBCL: contains a call to GENERIC-+
+  ; Size: 24 bytes. Origin: #x53AC4073                          ; (COMMON-LISP:LAMBDA
+                                                                      (O)
+                                                                    :IN
+                                                                    "/tmp/slimei7txZd")
+  ; 73:       488B4205         MOV RAX, [RDX+5]
+  ; 77:       488B7A0D         MOV RDI, [RDX+13]
+  ; 7B:       488BD0           MOV RDX, RAX
+  ; 7E:       E85DCAF3FE       CALL #x52A00AE0                  ; GENERIC-+
+  ; 83:       488BE5           MOV RSP, RBP
+  ; 86:       F8               CLC
+  ; 87:       5D               POP RBP
+  ; 88:       C3               RET
+  ; 89:       CC10             INT3 16                          ; Invalid argument count trap
 
   (disassemble (lambda (o)
                  (declare (extype (pair fixnum fixnum) o)
@@ -204,6 +233,33 @@ Combined with [[https://github.com/digikar99/polymorphic-functions/][polymorphic
                  (cl:+ (slot-a o)
                        (slot-b o))))
   ;=> On SBCL: direct addition, without a call to GENRIC-+
+  ; Size: 57 bytes. Origin: #x53AC4123                          ; (COMMON-LISP:LAMBDA
+                                                                      (O)
+                                                                    :IN
+                                                                    "/tmp/slimeaort6N")
+  ; 23:       488B4A05         MOV RCX, [RDX+5]
+  ; 27:       F6C101           TEST CL, 1
+  ; 2A:       752B             JNE L2
+  ; 2C:       48D1F9           SAR RCX, 1
+  ; 2F:       488B520D         MOV RDX, [RDX+13]
+  ; 33:       F6C201           TEST DL, 1
+  ; 36:       751C             JNE L1
+  ; 38:       48D1FA           SAR RDX, 1
+  ; 3B:       4801D1           ADD RCX, RDX
+  ; 3E:       48D1E1           SHL RCX, 1
+  ; 41:       7108             JNO L0
+  ; 43:       48D1D9           RCR RCX, 1
+  ; 46:       E805CEF3FE       CALL #x52A00F50                  ; ALLOC-SIGNED-BIGNUM-IN-RCX
+  ; 4B: L0:   488BD1           MOV RDX, RCX
+  ; 4E:       488BE5           MOV RSP, RBP
+  ; 51:       F8               CLC
+  ; 52:       5D               POP RBP
+  ; 53:       C3               RET
+  ; 54: L1:   CC4F             INT3 79                          ; OBJECT-NOT-FIXNUM-ERROR
+  ; 56:       08               BYTE #X08                        ; RDX(d)
+  ; 57: L2:   CC4F             INT3 79                          ; OBJECT-NOT-FIXNUM-ERROR
+  ; 59:       04               BYTE #X04                        ; RCX(d)
+  ; 5A:       CC10             INT3 16                          ; Invalid argument count trap
 #+END_SRC
 
 * TODO Needs more work 
