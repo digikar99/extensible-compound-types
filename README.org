@@ -118,7 +118,7 @@ To use this type in a =(declare (extype ...))= declaration, one also needs to de
   ;; TODO: Add SUBTYPEP example
 #+END_SRC
 
-More examples for this can be found in the [[file:cl-compound-types.lisp][cl-compound-types.lisp]].
+More examples for this can be found in the [[file:src/cl-compound-types.lisp][src/cl-compound-types.lisp]].
 
 - TODO: Document shadowing CL package
 
@@ -213,19 +213,18 @@ Combined with [[https://github.com/digikar99/polymorphic-functions/][polymorphic
                  (cl:+ (pair-a o)
                        (pair-b o))))
   ;=> On SBCL: contains a call to GENERIC-+
-  ; Size: 24 bytes. Origin: #x53AC4073                          ; (COMMON-LISP:LAMBDA
-                                                                      (O)
-                                                                    :IN
-                                                                    "/tmp/slimei7txZd")
-  ; 73:       488B4205         MOV RAX, [RDX+5]
-  ; 77:       488B7A0D         MOV RDI, [RDX+13]
-  ; 7B:       488BD0           MOV RDX, RAX
-  ; 7E:       E85DCAF3FE       CALL #x52A00AE0                  ; GENERIC-+
-  ; 83:       488BE5           MOV RSP, RBP
-  ; 86:       F8               CLC
-  ; 87:       5D               POP RBP
-  ; 88:       C3               RET
-  ; 89:       CC10             INT3 16                          ; Invalid argument count trap
+  ; Size: 28 bytes. Origin: #x53ACFD74                          ; (COMMON-LISP:LAMBDA
+  ;                                                                   (O))
+  ; 74:       488B4205         MOV RAX, [RDX+5]
+  ; 78:       488B7A0D         MOV RDI, [RDX+13]
+  ; 7C:       488BD0           MOV RDX, RAX
+  ; 7F:       FF1425F000A052   CALL QWORD PTR [#x52A000F0]      ; GENERIC-+
+  ; 86:       488BE5           MOV RSP, RBP
+  ; 89:       F8               CLC
+  ; 8A:       5D               POP RBP
+  ; 8B:       C3               RET
+  ; 8C:       CC10             INT3 16                          ; Invalid argument count trap
+  ; 8E:       CC10             INT3 16                          ; Invalid argument count trap
 
   (disassemble (lambda (o)
                  (declare (extype (pair fixnum fixnum) o)
@@ -233,33 +232,65 @@ Combined with [[https://github.com/digikar99/polymorphic-functions/][polymorphic
                  (cl:+ (slot-a o)
                        (slot-b o))))
   ;=> On SBCL: direct addition, without a call to GENRIC-+
-  ; Size: 57 bytes. Origin: #x53AC4123                          ; (COMMON-LISP:LAMBDA
-                                                                      (O)
-                                                                    :IN
-                                                                    "/tmp/slimeaort6N")
-  ; 23:       488B4A05         MOV RCX, [RDX+5]
-  ; 27:       F6C101           TEST CL, 1
-  ; 2A:       752B             JNE L2
-  ; 2C:       48D1F9           SAR RCX, 1
-  ; 2F:       488B520D         MOV RDX, [RDX+13]
-  ; 33:       F6C201           TEST DL, 1
-  ; 36:       751C             JNE L1
-  ; 38:       48D1FA           SAR RDX, 1
-  ; 3B:       4801D1           ADD RCX, RDX
-  ; 3E:       48D1E1           SHL RCX, 1
-  ; 41:       7108             JNO L0
-  ; 43:       48D1D9           RCR RCX, 1
-  ; 46:       E805CEF3FE       CALL #x52A00F50                  ; ALLOC-SIGNED-BIGNUM-IN-RCX
-  ; 4B: L0:   488BD1           MOV RDX, RCX
-  ; 4E:       488BE5           MOV RSP, RBP
-  ; 51:       F8               CLC
-  ; 52:       5D               POP RBP
-  ; 53:       C3               RET
-  ; 54: L1:   CC4F             INT3 79                          ; OBJECT-NOT-FIXNUM-ERROR
-  ; 56:       08               BYTE #X08                        ; RDX(d)
-  ; 57: L2:   CC4F             INT3 79                          ; OBJECT-NOT-FIXNUM-ERROR
-  ; 59:       04               BYTE #X04                        ; RCX(d)
-  ; 5A:       CC10             INT3 16                          ; Invalid argument count trap
+  ; Size: 61 bytes. Origin: #x53ACFC34                          ; (COMMON-LISP:LAMBDA
+  ;                                                                   (O))
+  ; 34:       488B4A05         MOV RCX, [RDX+5]
+  ; 38:       F6C101           TEST CL, 1
+  ; 3B:       752D             JNE L2
+  ; 3D:       48D1F9           SAR RCX, 1
+  ; 40:       488B520D         MOV RDX, [RDX+13]
+  ; 44:       F6C201           TEST DL, 1
+  ; 47:       751E             JNE L1
+  ; 49:       48D1FA           SAR RDX, 1
+  ; 4C:       4801D1           ADD RCX, RDX
+  ; 4F:       48D1E1           SHL RCX, 1
+  ; 52:       710A             JNO L0
+  ; 54:       48D1D9           RCR RCX, 1
+  ; 57:       FF14254801A052   CALL QWORD PTR [#x52A00148]      ; ALLOC-SIGNED-BIGNUM-IN-RCX
+  ; 5E: L0:   488BD1           MOV RDX, RCX
+  ; 61:       488BE5           MOV RSP, RBP
+  ; 64:       F8               CLC
+  ; 65:       5D               POP RBP
+  ; 66:       C3               RET
+  ; 67: L1:   CC4F             INT3 79                          ; OBJECT-NOT-FIXNUM-ERROR
+  ; 69:       08               BYTE #X08                        ; RDX(d)
+  ; 6A: L2:   CC4F             INT3 79                          ; OBJECT-NOT-FIXNUM-ERROR
+  ; 6C:       04               BYTE #X04                        ; RCX(d)
+  ; 6D:       CC10             INT3 16                          ; Invalid argument count trap
+  ; 6F:       CC10             INT3 16                          ; Invalid argument count trap
+
+  (disassemble (lambda (o)
+                 (declare (extype (pair single-float single-float) o)
+                          (optimize speed))
+                 (cl:+ (slot-a o)
+                       (slot-b o))))
+  ;=> On SBCL: direct addition, without a call to GENRIC-+
+  ; Size: 65 bytes. Origin: #x53ACFAE4                          ; (COMMON-LISP:LAMBDA
+  ;                                                                   (O))
+  ; AE4:       488B4205         MOV RAX, [RDX+5]
+  ; AE8:       3C19             CMP AL, 25
+  ; AEA:       7532             JNE L1
+  ; AEC:       66480F6EC8       MOVQ XMM1, RAX
+  ; AF1:       0FC6C9FD         SHUFPS XMM1, XMM1, #4r3331
+  ; AF5:       488B420D         MOV RAX, [RDX+13]
+  ; AF9:       3C19             CMP AL, 25
+  ; AFB:       751E             JNE L0
+  ; AFD:       66480F6ED0       MOVQ XMM2, RAX
+  ; B02:       0FC6D2FD         SHUFPS XMM2, XMM2, #4r3331
+  ; B06:       F30F58D1         ADDSS XMM2, XMM1
+  ; B0A:       660F7ED2         MOVD EDX, XMM2
+  ; B0E:       48C1E220         SHL RDX, 32
+  ; B12:       80CA19           OR DL, 25
+  ; B15:       488BE5           MOV RSP, RBP
+  ; B18:       F8               CLC
+  ; B19:       5D               POP RBP
+  ; B1A:       C3               RET
+  ; B1B: L0:   CC4C             INT3 76                         ; OBJECT-NOT-SINGLE-FLOAT-ERROR
+  ; B1D:       00               BYTE #X00                       ; RAX(d)
+  ; B1E: L1:   CC4C             INT3 76                         ; OBJECT-NOT-SINGLE-FLOAT-ERROR
+  ; B20:       00               BYTE #X00                       ; RAX(d)
+  ; B21:       CC10             INT3 16                         ; Invalid argument count trap
+  ; B23:       CC10             INT3 16                         ; Invalid argument count trap
 #+END_SRC
 
 * TODO Needs more work 
