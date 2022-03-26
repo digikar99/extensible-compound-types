@@ -42,15 +42,25 @@
   (declare (ignore env))
   expr)
 
-(defmacro define-compound-type (name (object-name &rest lambda-list) &body body)
-  "EXTENSIBLE-COMPOUND-TYPES:TYPEP relies on these whenever TYPE supplied is non-atomic.
-FIXME: Should also rely on them when atomic, since FIXNUM type is atomic"
-  `(eval-when (:compile-toplevel :load-toplevel :execute)
-     (setf (compound-type-lambda-expression ',name)
-           '(lambda (,object-name ,@lambda-list) ,@body))
-     (setf (compound-type-lambda ',name)
-           (lambda (,object-name ,@lambda-list) ,@body))
-     (setf (type-expander ',name) 'compound-type-nonexpander)))
+(defmacro define-compound-type (name-spec (object-name &rest lambda-list) &body body)
+  "EXTENSIBLE-COMPOUND-TYPES:TYPEP relies on these whenever TYPE supplied is
+non-atomic and non-class.
+
+NAME-SPEC can be either NAME or (NAME &KEY (NON-NULL T))
+"
+  (destructuring-bind (name &key (non-null t)) (ensure-list name-spec)
+    `(eval-when (:compile-toplevel :load-toplevel :execute)
+       (setf (compound-type-lambda-expression ',name)
+             '(lambda (,object-name ,@lambda-list) ,@body))
+       (setf (compound-type-lambda ',name)
+             (lambda (,object-name ,@lambda-list) ,@body))
+       (setf (type-expander ',name) 'compound-type-nonexpander)
+       ,(unless non-null
+          `(defmethod %subtypep ((t1-name (eql ',name)) (t2-name (eql nil)) type1 type2 &optional env)
+             (declare (ignore t1-name t2-name type1 type2 env))
+             (values nil t)))
+       t)))
+
 (defun undefine-compound-type (name)
   (setf (compound-type-lambda-expression name) nil)
   (setf (compound-type-lambda name) nil))
@@ -85,12 +95,19 @@ FIXME: Should also rely on them when atomic, since FIXNUM type is atomic"
 (defun typep (object type &optional environment)
   "Like CL:TYPEP if TYPE is an ATOM; but otherwise uses COMPOUND-TYPE-LAMBDA to determine TYPEP."
   (declare (ignorable environment))
-  (let ((type (typexpand type environment)))
-    (if (atom type)
-        (cl:typep object type)
-        (apply (compound-type-lambda type)
-               object
-               (rest type)))))
+  (let* ((type   (typexpand type environment))
+         (atomp  (atom type))
+         (classp (and atomp (find-class type nil environment))))
+    (cond ((eq t type)
+           t)
+          ((eq nil type)
+           nil)
+          (classp
+           (cl:typep object type))
+          (t
+           (apply (compound-type-lambda type)
+                  object
+                  (rest type))))))
 
 (define-compiler-macro typep (&whole form object-form type-form &optional env-form &environment env)
   (let ((optimize (and (> (second (assoc 'speed (declaration-information 'optimize env)))
@@ -106,10 +123,16 @@ FIXME: Should also rely on them when atomic, since FIXNUM type is atomic"
         (signal 'compiler-macro-notes:optimization-failure-note
                 :datum "Cannot determine TYPE and ENV from their compile time forms:~%  ~S~%  ~S"
                 :args (list type-form env-form)))
-      (let ((type (typexpand (eval type-form) (eval env-form))))
+      (let* ((type   (typexpand (eval type-form) (eval env-form)))
+             (atomp  (atom type))
+             (classp (and atomp (find-class type nil (eval env-form)))))
         (cond ((not optimize)
                form)
-              ((atom type)
+              ((eq t type)
+               t)
+              ((eq nil type)
+               nil)
+              (classp
                `(cl:typep ,object-form ',type))
               (t
                (let* ((cm   (compound-type-compiler-macro type))

@@ -11,12 +11,16 @@
 
            #+extensible-compound-types
            #:type
-           #-extensible-compound-types
            #:extype
 
            #:typep
            #:subtypep
            #:%subtypep
+           #:intersect-type-p
+           #:%intersect-type-p
+
+           #:type=
+           #:supertypep
 
            #:the
            #:check-type
@@ -50,6 +54,7 @@
 
    #:typep
    #:subtypep
+   #:type=
    #:check-type
    #:the
 
@@ -64,12 +69,24 @@
 (5am:def-suite :extensible-compound-types)
 (5am:in-suite  :extensible-compound-types)
 
+
 (define-declaration extype (args)
   (destructuring-bind (type &rest vars) args
     (values :variable
             (mapcar (lambda (var)
                       (list var 'extype type))
                     vars))))
+
+#+extensible-compound-types
+(define-declaration type (args)
+  (destructuring-bind (type &rest vars) args
+    (values :variable
+            (append (mapcar (lambda (var)
+                              (list var 'type type))
+                            vars)
+                    (mapcar (lambda (var)
+                              (list var 'extype type))
+                            vars)))))
 
 (defun atomic-type-specifier-p (type)   ; TODO: Take ENV
   (and (atom type)
@@ -115,11 +132,14 @@
   (let* ((atomp (atom type))
          (type-name (if (atom type) type (car type)))
          (classp (and atomp (find-class type-name nil env))))
-    (if classp
-        type
-        (funcall (type-expander type-name)
-                 (if atomp (list type) type)
-                 env))))
+    (cond (classp
+           type)
+          ((null type)
+           nil)
+          (t
+           (funcall (type-expander type-name)
+                    (if atomp (list type) type)
+                    env)))))
 
 (defun typexpand (type &optional env)
   (let ((expansion (typexpand-1 type env)))

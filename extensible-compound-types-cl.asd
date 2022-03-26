@@ -4,4 +4,8 @@
                "alexandria"
                "fiveam")
   :serial t
-  :components ((:file "special-forms")))
+  :pathname "cl"
+  :components ((:file "package")
+               (:file "special-forms")
+               (:file "macros")
+               (:file "misc")))

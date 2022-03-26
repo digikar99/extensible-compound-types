@@ -141,6 +141,13 @@
   (declare (ignore arg-typespec value-typespec))
   (functionp o))
 
+(define-compound-type keyword (o)
+  (and (symbolp o)
+       (eq (find-package :keyword)
+           (symbol-package o))))
+
+(deftype boolean () `(member t nil))
+
 ;; (macrolet ((def (type)
 ;;              `(progn
 ;;                 (define-compound-type ,type (o &optional (size 'cl:*))

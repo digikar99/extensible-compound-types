@@ -1,15 +1,39 @@
 
+* Motivation
+
+#+BEGIN_QUOTE
+=extensible-compound-types= allows for the definition of user-defined [[http://www.lispworks.com/documentation/lw70/CLHS/Body/26_glo_c.htm#compound_type_specifier][compound-types]]. These work well with respect to type safety, but may not work completely well with respect to optimization.
+#+END_QUOTE
+
+
+Common Lisp has a rich (although not the richest :/) type system allowing for the combination of types using =not and or member values=, specifying =eql= types, or even completely arbitrary types using =satisfies=. 
+
+Through [[http://www.lispworks.com/documentation/lw70/CLHS/Body/26_glo_c.htm#compound_type_specifier][compound-types]], it even allows for specification of the exact integer or float through =(num-type low high)=, or the exact dimensions of a vector or array through =(array-type element-type rank/dimensions)=. This allows compilers to type-check the code besides enhancing readability, besides also helping them with optimization. However, CLHS does not provide facilities for cleanly defining user-defined compound-types. Such types could include a =(equalp object)= type, a ~(type= type)~ , or a =(pair type-1 type-2)= type, or =(custom-array element-type dimensions)=. The most one can do is play around with =satisfies= types. However, not only do =satisfies= types not integrate well into rest of the type system, but they are restricted to single argument functions that only take the object to be type-checked as their argument.
+
+=extensible-compound-types= allow for the definition of user-defined compound types. Unfortunately, this requires nothing less than shadowing the symbols in the CL package, since, one,
+
+#+BEGIN_QUOTE
+The consequences are undefined if decl-name is a symbol that can appear as the car of any standard declaration specifier.
+
+The consequences are also undefined if the return value from a declaration handler defined with define-declaration includes a key name that is used by the corresponding accessor to return information about any standard declaration specifier. (For example, if the first return value from the handler is :variable, the second return value may not use the symbols dynamic-extent, ignore, or type as key names.)
+
+-- [[https://www.cs.cmu.edu/Groups/AI/html/cltl/clm/node102.html][8.5 Environments, Common Lisp the Language, 2nd Edition]]
+#+END_QUOTE
+
+And two, one needs to convert the declarations into a type-check statement for purposes of correctness. Towards this, a =extensible-compound-types-cl= system and package is also provided that shadows symbols that incorporate declarations.
+
 * Contents
 :PROPERTIES:
 :TOC:      :include all
 :END:
 
 :CONTENTS:
-- [[#contents][Contents]]
 - [[#motivation][Motivation]]
+- [[#contents][Contents]]
 - [[#core-api-for-using-as-a-shadowing-package][Core API for using as a shadowing package]]
 - [[#additional-tools][Additional tools]]
 - [[#extensible-compound-types-api][Extensible Compound Types API]]
+- [[#parametric-types][Parametric Types]]
 - [[#needs-more-work][Needs more work]]
 - [[#internal-discussion][Internal Discussion]]
   - [[#usage-api][Usage API]]
@@ -26,30 +50,6 @@
 :END:
 
 
-* Motivation
-
-#+BEGIN_QUOTE
-=extensible-compound-types= allow for the definition of user-defined [[http://www.lispworks.com/documentation/lw70/CLHS/Body/26_glo_c.htm#compound_type_specifier][compound-types]]. These work well with respect to type safety, but may not work well with respect to optimization.
-
-#+END_QUOTE
-
-
-Common Lisp has a rich (although not the richest :/) type system allowing for the combination of types using =not and or member values=, specifying =eql= types, or even completely arbitrary types using =satisfies=. 
-
-Through [[http://www.lispworks.com/documentation/lw70/CLHS/Body/26_glo_c.htm#compound_type_specifier][compound-types]], it even allows for specification of the exact integer or float through =(num-type low high)=, or the exact dimensions of a vector or array through =(array-type element-type rank/dimensions)=. One, this allows for compilers to type-check the code besides enhancing readability, and two, it allows them to optimize it. However, CLHS provided compound types have the limitation prohibiting one from cleanly defining user-defined compound-types. Such types could include a =(equalp object)= type, a ~(type= type)~ , or a =(pair type-1 type-2)= type, or =(custom-array element-type dimensions)=. The most one can do is play around with =satisfies= types. However, not only do =satisfies= types not integrate well into the type system, but they are restricted to single argument functions that only take the object to be type-checked as its argument.
-
-=extensible-compound-types= allow for the definition of user-defined compound types. Unfortunately, this requires nothing less than shadowing the symbols in the CL package, since, one,
-
-#+BEGIN_QUOTE
-The consequences are undefined if decl-name is a symbol that can appear as the car of any standard declaration specifier.
-
-The consequences are also undefined if the return value from a declaration handler defined with define-declaration includes a key name that is used by the corresponding accessor to return information about any standard declaration specifier. (For example, if the first return value from the handler is :variable, the second return value may not use the symbols dynamic-extent, ignore, or type as key names.)
-
--- [[https://www.cs.cmu.edu/Groups/AI/html/cltl/clm/node102.html][8.5 Environments, Common Lisp the Language, 2nd Edition]]
-#+END_QUOTE
-
-And two, one needs to convert the declarations into a type-check statement for purposes of correctness.
-
 * Core API for using as a shadowing package
 
 - typep
@@ -65,7 +65,9 @@ And two, one needs to convert the declarations into a type-check statement for p
 - typexpand-1
 - typexpand
 - typexpand-all
+- type=
 - supertypep
+- intersect-type-p
 - =*the-skip-predicates*=
 
 * Extensible Compound Types API
@@ -74,6 +76,7 @@ And two, one needs to convert the declarations into a type-check statement for p
 - undefine-compound-type
 - %upgraded-cl-type
 - %subtypep
+- %intersect-type-p
 - extype
 
 Compound Types can be defined by first defining the =typep= part using =define-compound-type=.
@@ -118,41 +121,96 @@ More examples for this can be found in the [[file:cl-compound-types.lisp][cl-com
 
 - TODO: Document shadowing CL package
 
+* Parametric Types
+
+Combined with [[https://github.com/digikar99/polymorphic-functions/][polymorphic-functions]], one can create a wrapper around =extensible-compound-types= as follows:
+
+#+BEGIN_SRC lisp
+  (defstruct pair a b)
+
+  (define-compound-type pair (o &optional (type-a 'cl:*) (type-b 'cl:*))
+    (and (cl:typep o 'pair)
+         (with-slots (a b) o
+           (and (if (eq 'cl:* type-a)
+                    t
+                    (cl:typep a type-a))
+                (if (eq 'cl:* type-b)
+                    t
+                    (cl:typep b type-b))))))
+
+  (defmethod %upgraded-cl-type ((name (eql 'pair)) type &optional env)
+    (declare (ignore type env))
+    name)
+
+  (defmethod %subtypep ((t1 (eql 'pair)) (t2 (eql 'pair)) type1 type2 &optional env)
+    (declare (ignore t1 t2))
+    (destructuring-bind (&optional (t1a 'cl:*) (t1b 'cl:*)) (rest type1)
+      (destructuring-bind (&optional (t2a 'cl:*) (t2b 'cl:*)) (rest type2)
+        ;; FIXME: This does not look exhaustive
+        (cond ((and (eq t2a 'cl:*) (eq t2b 'cl:*))
+               (values t t))
+              ((and (eq t1a 'cl:*) (eq t2b 'cl:*))
+               ;; t2a is specified, but t1a is not
+               (values nil t))))))
+
+  (defmethod %deparameterize-type ((car (eql 'pair)) type-specifier &optional env)
+    (declare (ignore type-specifier env))
+    car)
+
+  (defmethod parametric-type-run-time-lambda-body ((type-car (eql 'pair)) type-cdr parameter)
+    (let ((accessor (cond ((eq parameter (first type-cdr))
+                           'pair-a)
+                          ((eq parameter (second type-cdr))
+                           'pair-b))))
+      `(cl:lambda (pair)
+         (declare (optimize speed)
+                  (type pair pair))
+         ;; FIXME: One needs a wrapper around TYPE-OF, since TYPE-OF may not
+         ;; return what one expects; example:
+         ;; (TYPE-OF 1) ;=> BIT
+         (type-of (,accessor pair)))))
+
+  (defmethod parametric-type-compile-time-lambda-body
+      ((type-car (eql 'pair)) type-cdr parameter)
+    `(cl:lambda (elt-type)
+       (destructuring-bind (&optional (type-a t) (type-b t)) (rest elt-type)
+         (declare (ignorable type-a type-b))
+         (when (eq cl:* type-a) (setq type-a t))
+         (when (eq cl:* type-b) (setq type-b t))
+         ,(cond ((eq parameter (first type-cdr))
+                 `type-a)
+                ((eq parameter (second type-cdr))
+                 `type-b)
+                (t
+                 (error "Unknown case"))))))
+
+  (define-polymorphic-function slot-a (object) :overwrite t)
+  (defpolymorph slot-a ((o (pair <a> <b>))) <a>
+    (pair-a o))
+  (define-polymorphic-function slot-b (object) :overwrite t)
+  (defpolymorph slot-b ((o (pair <a> <b>))) <b>
+    (pair-b o))
+
+  (disassemble (lambda (o)
+                 (declare (extype (pair fixnum fixnum) o)
+                          (optimize speed))
+                 (cl:+ (pair-a o)
+                       (pair-b o))))
+  ;=> On SBCL: contains a call to GENERIC-+
+
+  (disassemble (lambda (o)
+                 (declare (extype (pair fixnum fixnum) o)
+                          (optimize speed))
+                 (cl:+ (slot-a o)
+                       (slot-b o))))
+  ;=> On SBCL: direct addition, without a call to GENRIC-+
+#+END_SRC
+
 * TODO Needs more work 
 
 - typelet
 - typelet*
-- compiler macro for typep
 - Specifying better predicates for =*the-skip-predicates*=
-
-** Parametric Types
-
-#+BEGIN_SRC lisp
-(defstruct pair a b)
-
-(define-compound-type pair (o &optional (type-a 'cl:*) (type-b 'cl:*))
-  (and (cl:typep o 'pair)
-       (with-slots (a b) o
-         (and (if (eq 'cl:* type-a)
-                  t
-                  (cl:typep a type-a))
-              (if (eq 'cl:* type-b)
-                  t
-                  (cl:typep b type-b))))))
-
-(define-type-expander pair (&optional (type-a 'cl:*) (type-b 'cl:*))
-  (let ((type-a-p (not (eq 'cl:* type-a)))
-        (type-b-p (not (eq 'cl:* type-b))))
-    (cond ((and type-a-p type-b-p)
-           `(pair ,(typexpand-1 type-a)
-                  ,(typexpand-1 type-b)))
-          (type-a-p
-           `(pair ,(typexpand-1 type-a)))
-          (type-b-p
-           `(pair cl:* ,(typexpand-1 type-b)))
-          (t
-           '(pair)))))
-#+END_SRC
   
 * Internal Discussion
 
