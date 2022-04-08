@@ -69,6 +69,10 @@
 (5am:def-suite :extensible-compound-types)
 (5am:in-suite  :extensible-compound-types)
 
+(in-nomine:define-namespace extype)
+
+#+extensible-compound-types
+(in-nomine:define-namespace type)
 
 (define-declaration extype (args)
   (destructuring-bind (type &rest vars) args
@@ -115,12 +119,21 @@
 
 (defmacro deftype (name lambda-list &body body &environment env)
   "Useful for defining type aliases, example: (DEFTYPE INT32 () '(SIGNED-BYTE 32))"
-  `(eval-when (:compile-toplevel :load-toplevel :execute)
-     (setf (type-expander ',name)
-           ,(parse-macro name
-                         lambda-list
-                         body
-                         env))))
+  (multiple-value-bind (body decl doc) (parse-body body :documentation t)
+    `(eval-when (:compile-toplevel :load-toplevel :execute)
+       (setf (type-expander ',name)
+             ,(parse-macro name
+                           lambda-list
+                           (append decl body)
+                           env))
+       #-extensible-compound-types
+       (setf (symbol-extype ',name) ',lambda-list)
+       #+extensible-compound-types
+       (setf (symbol-type ',name) ',lambda-list)
+       #-extensible-compound-types
+       (setf (cl:documentation ',name 'extype) ,doc)
+       #+extensible-compound-types
+       (setf (cl:documentation ',name 'type) ,doc))))
 
 ;;; TODO: Could introduce a TMAKUNBOUND
 (defmacro undeftype (name)

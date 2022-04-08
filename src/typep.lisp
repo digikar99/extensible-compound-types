@@ -49,17 +49,26 @@ non-atomic and non-class.
 NAME-SPEC can be either NAME or (NAME &KEY (NON-NULL T))
 "
   (destructuring-bind (name &key (non-null t)) (ensure-list name-spec)
-    `(eval-when (:compile-toplevel :load-toplevel :execute)
-       (setf (compound-type-lambda-expression ',name)
-             '(lambda (,object-name ,@lambda-list) ,@body))
-       (setf (compound-type-lambda ',name)
-             (lambda (,object-name ,@lambda-list) ,@body))
-       (setf (type-expander ',name) 'compound-type-nonexpander)
-       ,(unless non-null
-          `(defmethod %subtypep ((t1-name (eql ',name)) (t2-name (eql nil)) type1 type2 &optional env)
-             (declare (ignore t1-name t2-name type1 type2 env))
-             (values nil t)))
-       t)))
+    (let ((doc (nth-value 2 (parse-body body :documentation t))))
+      `(eval-when (:compile-toplevel :load-toplevel :execute)
+         (setf (compound-type-lambda-expression ',name)
+               '(lambda (,object-name ,@lambda-list) ,@body))
+         (setf (compound-type-lambda ',name)
+               (lambda (,object-name ,@lambda-list) ,@body))
+         (setf (type-expander ',name) 'compound-type-nonexpander)
+         #-extensible-compound-types
+         (setf (symbol-extype ',name) ',lambda-list)
+         #+extensible-compound-types
+         (setf (symbol-type ',name) ',lambda-list)
+         ,(unless non-null
+            `(defmethod %subtypep ((t1-name (eql ',name)) (t2-name (eql nil)) type1 type2 &optional env)
+               (declare (ignore t1-name t2-name type1 type2 env))
+               (values nil t)))
+         #-extensible-compound-types
+         (setf (cl:documentation ',name 'extype) ,doc)
+         #+extensible-compound-types
+         (setf (cl:documentation ',name 'type) ,doc)
+         t))))
 
 (defun undefine-compound-type (name)
   (setf (compound-type-lambda-expression name) nil)
