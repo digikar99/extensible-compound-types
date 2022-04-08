@@ -146,23 +146,28 @@
          (type-name (if (atom type) type (car type)))
          (classp (and atomp (find-class type-name nil env)))
          (expander (ignore-some-conditions (unknown-type-specifier)
-                     (type-expander type-name))))
-    (cond (expander
-           (funcall expander
-                    (if atomp (list type) type)
-                    env))
-          (classp
-           type)
-          ((null type)
-           nil)
-          (t
-           (error "Unhandled case!")))))
+                     (type-expander type-name)))
+         (expansion (cond (expander
+                           (funcall expander
+                                    (if atomp (list type) type)
+                                    env))
+                          (classp
+                           type)
+                          ((null type)
+                           nil)
+                          (t
+                           type))))
+    (if (and classp
+             (listp expansion)
+             (null (cdr expansion)))
+        (values (first expansion) (not (equal type (first expansion))))
+        (values expansion (not (equal expansion type))))))
 
 (defun typexpand (type &optional env)
   (let ((expansion (typexpand-1 type env)))
     (if (equal expansion type)
-        expansion
-        (typexpand expansion env))))
+        (values expansion nil)
+        (values (typexpand expansion env) t))))
 
 (5am:def-test define-and-undefine-types ()
   (eval `(progn
@@ -172,6 +177,4 @@
            (5am:is (eq 'single-float (typexpand-1 'float32)))
            (5am:is (eq 'single-float (typexpand 'f32)))
            (undeftype f32)
-           (undeftype float32)
-           (5am:signals unknown-type-specifier (typexpand 'f32))
-           (5am:signals unknown-type-specifier (typexpand 'float32)))))
+           (undeftype float32))))

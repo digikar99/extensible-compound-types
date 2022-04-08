@@ -72,7 +72,22 @@ NAME-SPEC can be either NAME or (NAME &KEY (NON-NULL T))
 
 (defun undefine-compound-type (name)
   (setf (compound-type-lambda-expression name) nil)
-  (setf (compound-type-lambda name) nil))
+  (setf (compound-type-lambda name) nil)
+  (setf (type-expander name) nil)
+
+  #-extensible-compound-types
+  (extype-makunbound name)
+  #+extensible-compound-types
+  (type-makunbound name)
+  ;; FIXME: Undefine methods specialized on this type
+  ;; ,(unless non-null
+  ;;    `(defmethod %subtypep ((t1-name (eql ',name)) (t2-name (eql nil)) type1 type2 &optional env)
+  ;;       (declare (ignore t1-name t2-name type1 type2 env))
+  ;;       (values nil t)))
+  #-extensible-compound-types
+  (setf (cl:documentation name 'extype) nil)
+  #+extensible-compound-types
+  (setf (cl:documentation name 'type) nil))
 
 (defparameter *compound-type-compiler-macros* (make-hash-table))
 (defun compound-type-compiler-macro (type)

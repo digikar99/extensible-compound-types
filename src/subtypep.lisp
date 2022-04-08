@@ -46,7 +46,7 @@
                 (eq 'and (first type1)))
            (multiple-value-bind (null knownp) (apply #'intersection-null-p env (rest type1))
              (cond ((and knownp null)
-                    (values (type= type2 nil) t))
+                    (values t t))
                    ((not knownp)
                     (values nil nil))
                    (t
