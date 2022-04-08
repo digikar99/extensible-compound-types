@@ -154,6 +154,7 @@ More examples for this can be found in the [[file:src/cl-compound-types.lisp][sr
 Combined with [[https://github.com/digikar99/polymorphic-functions/][polymorphic-functions+extensible-compound-types]], one /can/ create a wrapper around =extensible-compound-types= as follows:
 
 #+BEGIN_SRC lisp
+  (push :extensible-compound-types cl:*features*)
   (ql:quickload "polymorphic-functions+extensible-compound-types")
 
   (cl:defpackage parametric-types-demo

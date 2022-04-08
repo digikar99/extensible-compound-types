@@ -5,6 +5,10 @@
                "compiler-macro-notes"
                "fiveam"
                "in-nomine")
+  :description "EXTENSIBLE-COMPOUND-TYPES for user-defined compound-types like (array &optional element-type dimension-spec)"
+  :author "Shubhamkar B. Ayare (digikar)"
+  :version "0.0.0" ; alpha
+  :license "MIT"
   :serial t
   :pathname "src"
   :components ((:file "package")
