@@ -27,6 +27,10 @@ The consequences are also undefined if the return value from a declaration handl
 
 Towards this, a =extensible-compound-types-cl= system and package is also provided that shadows symbols that incorporate declarations. The goal is to make this system so that it can be used as a drop-in for COMMON-LISP package - or at least with minimal modifications such as qualifying symbols with =CL:= prefix where necessary. If you want to use it, and it doesn't work as a drop-in, feel free to raise an [[https://github.com/digikar99/extensible-compound-types/issues][issue]]!
 
+** #+EXTENSIBLE-COMPOUND-TYPES
+
+If CL:*FEATURES* constains :EXTENSIBLE-COMPOUND-TYPES, then we also shadow CL:TYPE itself using EXTENSIBLE-COMPOUND-TYPES:TYPE. Otherwise, one needs to use EXTENSIBLE-COMPOUND-TYPES:EXTYPE. The goal for doing this is to allow for both side-by-side usage, as well as a complete replacement.
+
 * Contents
 :PROPERTIES:
 :TOC:      :include all
@@ -35,7 +39,9 @@ Towards this, a =extensible-compound-types-cl= system and package is also provid
 :CONTENTS:
 - [[#motivation][Motivation]]
   - [[#extensible-compound-types-cl-yet-another-shadowing-cl-package][extensible-compound-types-cl: yet another shadowing CL package]]
+  - [[#extensible-compound-types][#+EXTENSIBLE-COMPOUND-TYPES]]
 - [[#contents][Contents]]
+- [[#example-code][Example Code]]
 - [[#core-api-for-using-as-a-shadowing-package][Core API for using as a shadowing package]]
 - [[#additional-tools][Additional tools]]
 - [[#extensible-compound-types-api][Extensible Compound Types API]]
@@ -44,12 +50,9 @@ Towards this, a =extensible-compound-types-cl= system and package is also provid
 - [[#internal-discussion][Internal Discussion]]
   - [[#usage-api][Usage API]]
   - [[#shadowing-cl-package][Shadowing CL package]]
-  - [[#handling-parametric-types][Handling parametric types]]
-  - [[#integration-with-cltype-declarations][Integration with CL:TYPE declarations]]
   - [[#subtypep][subtypep]]
     - [[#if-two-types-are-such-that-one-type-has-a-greater-number-of-specified-parameters-than-another-then-should-that-mean-first-is-more-specialized-than-second][If two types are such that one type has a greater number of specified parameters than another, then should that mean first is more specialized than second?]]
     - [[#what-should-the-relations-between-two-compound-types-corresponding-to-subclass-and-superclass][What should the relations between two compound types corresponding to subclass and superclass?]]
-  - [[#simplify-type-aka-typexpand][simplify-type aka typexpand]]
   - [[#only-specialized-types-or-more-general-compound-types-like-type-type][Only specialized types, or more general compound types like (type= type)?]]
   - [[#comparison-with-cl-parametric-types][Comparison with cl-parametric-types]]
   - [[#comparison-with-ctype][Comparison with ctype]]
@@ -74,6 +77,7 @@ To use this type in a =(declare (extype ...))= declaration, one also needs to de
   ;;; Hint: Abstract out the "multiples" part from integer-multiples
   ;;; single-float-multiplesrational-multiples etc.
   (define-compound-type integer-multiples (object n)
+    "A user-defined compound-type that denotes integers that are multiples of N"
     (and (numberp object)
          (zerop (rem object n))))
 
@@ -84,6 +88,7 @@ To use this type in a =(declare (extype ...))= declaration, one also needs to de
     (declare (ignore name env))
     'integer)
 
+  #|
   (disassemble (lambda (x)
                  (declare (optimize speed)
                           (extype (integer-multiples 3) x))
@@ -99,6 +104,15 @@ To use this type in a =(declare (extype ...))= declaration, one also needs to de
   ; 5:       C3               RET
   ; 6:       CC10             INT3 16                           ; Invalid argument count trap
 
+  (describe 'integer-multiples)
+  EXTENSIBLE-COMPOUND-TYPES-DEMO::INTEGER-MULTIPLES
+    [symbol]
+
+  INTEGER-MULTIPLES is bound in namespace TYPE:
+    Value: (N)
+    Documentation:
+      A user-defined compound-type that denotes integers that are multiples of N
+  |#
   ;; TODO: Add SUBTYPEP example
 #+END_SRC
 
@@ -150,6 +164,9 @@ Combined with [[https://github.com/digikar99/polymorphic-functions/][polymorphic
   (defstruct pair a b)
 
   (define-compound-type pair (o &optional (type-a 'cl:*) (type-b 'cl:*))
+    "A user-defined compound-type that allows the specification of the
+  types of the values stored in slots A and B of the structure-class
+  PAIR."
     (and (cl:typep o 'pair)
          (with-slots (a b) o
            (and (if (eq 'cl:* type-a)
@@ -219,7 +236,7 @@ Combined with [[https://github.com/digikar99/polymorphic-functions/][polymorphic
              (defpolymorph slot-b ((o (pair <a> <b>))) <b>
                (pair-b o)))))
 
-
+  ;;; Exercise for the reader: Write a compiler-macro that emits appropriate compiler-notes
   (disassemble (lambda (o)
                  (declare (extype (pair fixnum fixnum) o)
                           (optimize speed))
