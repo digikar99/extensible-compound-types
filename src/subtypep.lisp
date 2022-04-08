@@ -154,8 +154,8 @@
                     (every #'dim-subtype-p dim1 dim2))
                    (t
                     nil))))
-    (destructuring-bind (&optional (elt1 'cl:*) (dim1 'cl:*)) (rest type1)
-      (destructuring-bind (&optional (elt2 'cl:*) (dim2 'cl:*)) (rest type2)
+    (destructuring-bind (&optional (elt1 'cl:*) (dim1 'cl:*)) (rest (ensure-list type1))
+      (destructuring-bind (&optional (elt2 'cl:*) (dim2 'cl:*)) (rest (ensure-list type2))
         (let ((dim-subtype-p (dim-subtype-p dim1 dim2)))
           (cond ((and (eq 'cl:* elt1) (eq 'cl:* elt2))
                  (values dim-subtype-p t))

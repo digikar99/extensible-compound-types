@@ -4,14 +4,28 @@
   (multiple-value-bind (rem-body decl doc-string) (a:parse-body body :documentation t)
     (multiple-value-bind (extype-decl remaining-decls)
         (extract-declaration decl 'ex:extype)
-      `(cl:lambda ,args
-         ,(or doc-string "")
-         ,@(remove-if #'null
-                      (list* (cl-type-declarations extype-decl env)
-                             extype-decl
-                             remaining-decls))
-         ,@(prepare-extype-checks extype-decl)
-         ,@rem-body))))
+      (multiple-value-bind (type-decl remaining-decls-2)
+          (extract-declaration decl 'ex:type)
+        #+extensible-compound-types
+        (setq extype-decl (cond ((and extype-decl type-decl)
+                                 (append extype-decl
+                                         (rest type-decl)))
+                                (type-decl
+                                 type-decl)
+                                (extype-decl
+                                 extype-decl)
+                                (nil
+                                 nil))
+              remaining-decls (append remaining-decls
+                                      remaining-decls-2))
+        `(cl:lambda ,args
+           ,(or doc-string "")
+           ,@(remove-if #'null
+                        (list* (cl-type-declarations extype-decl env)
+                               extype-decl
+                               remaining-decls))
+           ,@(prepare-extype-checks extype-decl)
+           ,@rem-body)))))
 
 (5am:def-test excl:lambda ()
   (5am:is-true (eval `(excl:lambda (x) "" (declare (type integer x)) x)))
