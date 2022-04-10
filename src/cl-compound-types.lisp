@@ -18,7 +18,38 @@
                               (cl:check-type upper-limit ,type)
                               (cl:<= (cl:the ,type lower-limit)
                                      o
-                                     (cl:the ,type upper-limit)))))))))
+                                     (cl:the ,type upper-limit))))))
+                (defmethod %subtypep ((n1 (eql ',type)) (n2 (eql ',type)) t1 t2 &optional env)
+                  (declare (ignore env))
+                  (let ((t1 (ensure-list t1))
+                        (t2 (ensure-list t2)))
+                    (destructuring-bind (&optional (low1 'cl:*) (high1 'cl:*)) (rest t1)
+                      (destructuring-bind (&optional (low2 'cl:*) (high2 'cl:*)) (rest t2)
+                        (cond ((and (eq low1 'cl:*) (eq low2 'cl:*))
+                               (values t t))
+                              ((eq low2 'cl:*) ; low1 is specified but low2 isn't
+                               (values t t))
+                              ((eq low1 'cl:*) ; low2 is specified but low1 isn't
+                               (values nil t))
+                              ((and (< low1 low2) ; both are specified
+                                    (eq high1 'cl:*)
+                                    (eq high2 'cl:*))
+                               (values nil t))
+                              ((and (>= low1 low2) ; both are specified
+                                    (eq high1 'cl:*)
+                                    (eq high2 'cl:*))
+                               (values t t))
+                              ((and (>= low1 low2) ; both are specified
+                                    (eq high2 'cl:*)) ; high1 is specified but high2 is not
+                               (values t t))
+                              ((and (>= low1 low2) ; both are specified
+                                    (eq high1 'cl:*)) ; high2 is specified but high1 is not
+                               (values nil t))
+                              ((and (>= low1 low2) ; everything is specified
+                                    (<= high1 high2))
+                               (values t t))
+                              (t
+                               (values nil t))))))))))
   ;; On SBCL, about 3-6 times faster than "completely reducing to CL:TYPE check as below"
 
   ;; TODO: Can this be simplified?
