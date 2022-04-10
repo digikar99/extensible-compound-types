@@ -86,8 +86,14 @@ the generic-function %SUBTYPEP to determine the SUBTYPEP relation."
   (subtypep type2 type1 environment))
 
 (defun type= (type1 type2 &optional environment)
-  (and (subtypep type1 type2 environment)
-       (subtypep type2 type1 environment)))
+  (multiple-value-bind (s1 k1) (subtypep type1 type2 environment)
+    (multiple-value-bind (s2 k2) (subtypep type2 type1 environment)
+      (cond ((and s1 k1 s2 k2)
+             (values t t))
+            ((and k1 k2)
+             (values nil t))
+            (t
+             (values nil nil))))))
 
 (defun upgraded-cl-type (type-specifier &optional environment)
   "If TYPE-SPECIFIER is a non-ATOM, uses %UPGRADED-CL-TYPE to upgraded to a CL type.

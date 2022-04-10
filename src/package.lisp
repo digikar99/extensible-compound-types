@@ -133,7 +133,8 @@
        #-extensible-compound-types
        (setf (cl:documentation ',name 'extype) ,doc)
        #+extensible-compound-types
-       (setf (cl:documentation ',name 'type) ,doc))))
+       (setf (cl:documentation ',name 'type) ,doc)
+       t)))
 
 ;;; TODO: Could introduce a TMAKUNBOUND
 (defmacro undeftype (name)
