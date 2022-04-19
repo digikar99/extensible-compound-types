@@ -15,6 +15,12 @@ However, CLHS does not provide facilities for cleanly defining user-defined comp
 
 While it might seem like [[http://clhs.lisp.se/Body/m_deftp.htm][CL:DEFTYPE]] allows for the definition of compound types, these types are what CLHS calls [[http://clhs.lisp.se/Body/26_glo_d.htm#derived_type][derived type]] specifiers, mere abbreviations and simple combinations of existing types. The most one can do is play around with SATISFIES types. However, not only do SATISFIES types not integrate well into rest of the type system, but they are also restricted to single argument functions that only take the object to be type-checked as their argument and no more parameters or arguments than that. See the [[#example-code][Example Code]] for an example of a type that is non-trivial (if not impossible!) to define using CL:DEFTYPE.
 
+Recommended usage is:
+
+1. Push =:extensible-compound-types= into =cl:*features*=.
+2. =(ql:quickload "extensible-compound-types-cl")=
+3. =(defpackage your-package (:use :extensible-compound-types-cl))=
+
 ** extensible-compound-types-cl: yet another shadowing CL package
 
 =extensible-compound-types= allow for the definition of user-defined compound types. Unfortunately, this requires nothing less than shadowing the symbols in the CL package. We start out with a user-defined declaration (CLTL2) EXTYPE or EXTENSIBLE-COMPOUND-TYPES:TYPE. However, to actually use the compiler's built-in type safety and optimization, one needs to modify the CL:TYPE declarations, but while doing so:
@@ -150,8 +156,6 @@ More examples for this can be found in the [[file:src/cl-compound-types.lisp][sr
 - %subtypep
 - %intersect-type-p
 - extype
-
-- TODO: Document shadowing CL package
 
 * Parametric Types
 
@@ -333,6 +337,8 @@ Combined with [[https://github.com/digikar99/polymorphic-functions/][polymorphic
 - typelet
 - typelet*
 - Specifying better predicates for =*the-skip-predicates*=
+
+- Creating a wrapper for CL:LOOP
   
 * Internal Discussion
 
