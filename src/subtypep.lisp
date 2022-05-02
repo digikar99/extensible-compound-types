@@ -51,7 +51,12 @@
                     (values nil nil))
                    (t
                     (values (some (lambda (type)
-                                    (subtypep type type2 env))
+                                    (multiple-value-bind (subtypep knownp)
+                                        (subtypep type type2 env)
+                                      (if knownp
+                                          subtypep
+                                          (return-from %subtypep
+                                            (values nil nil)))))
                                   (rest type1))
                             t)))))
           (t

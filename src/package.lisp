@@ -13,11 +13,13 @@
            #:type
            #:extype
 
+           #:type-specifier-p
            #:typep
            #:subtypep
            #:%subtypep
            #:intersect-type-p
            #:%intersect-type-p
+           #:intersection-null-p
 
            #:type=
            #:supertypep
@@ -120,26 +122,42 @@
 (defmacro deftype (name lambda-list &body body &environment env)
   "Useful for defining type aliases, example: (DEFTYPE INT32 () '(SIGNED-BYTE 32))"
   (multiple-value-bind (body decl doc) (parse-body body :documentation t)
-    `(eval-when (:compile-toplevel :load-toplevel :execute)
-       (setf (type-expander ',name)
-             ,(parse-macro name
-                           lambda-list
-                           (append decl body)
-                           env))
-       #-extensible-compound-types
-       (setf (symbol-extype ',name) ',lambda-list)
-       #+extensible-compound-types
-       (setf (symbol-type ',name) ',lambda-list)
-       #-extensible-compound-types
-       (setf (cl:documentation ',name 'extype) ,doc)
-       #+extensible-compound-types
-       (setf (cl:documentation ',name 'type) ,doc)
-       t)))
+    `(progn
+       ,(unless (eq (find-package :cl) (symbol-package name))
+          `(cl:deftype ,name ,lambda-list
+             (upgraded-cl-type `(,',name ,@',lambda-list))))
+       (eval-when (:compile-toplevel :load-toplevel :execute)
+         (setf (type-expander ',name)
+               ,(parse-macro name
+                             lambda-list
+                             (append decl body)
+                             env))
+         #-extensible-compound-types
+         (setf (symbol-extype ',name) ',lambda-list)
+         #+extensible-compound-types
+         (setf (symbol-type ',name) ',lambda-list)
+         #-extensible-compound-types
+         (setf (cl:documentation ',name 'extype) ,doc)
+         #+extensible-compound-types
+         (setf (cl:documentation ',name 'type) ,doc)
+         t))))
 
 ;;; TODO: Could introduce a TMAKUNBOUND
 (defmacro undeftype (name)
   `(eval-when (:compile-toplevel :load-toplevel :execute)
      (setf (type-expander ',name) nil)))
+
+(defun type-specifier-p (object &optional env)
+  (and (or (listp object)
+           (symbolp object))
+       (let* ((atomp (atom object))
+              (type-name (if (atom object) object (car object)))
+              (classp (and atomp (find-class type-name nil env))))
+         (or (if classp t nil)
+             (nth-value 0 (ignore-some-conditions (unknown-type-specifier)
+                            (progn
+                              (type-expander type-name)
+                              t)))))))
 
 (defun typexpand-1 (type &optional env)
   "Returns two values: EXPANSION and EXPANDEDP"

@@ -80,7 +80,8 @@
           `(integer ,low ,high)))))
 
 (deftype fixnum () `(integer ,most-negative-fixnum ,most-positive-fixnum))
-(deftype mod (n) `(integer 0 ,n))
+(deftype mod (n) `(integer 0 ,(1- n)))
+(deftype bit () `(integer 0 1))
 
 (define-compound-type complex (o &optional (typespec 'cl:*))
   (and (complexp o)

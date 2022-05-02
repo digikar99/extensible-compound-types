@@ -65,9 +65,11 @@ NAME-SPEC can be either NAME or (NAME &KEY (NON-NULL T))
                (declare (ignore t1-name t2-name type1 type2 env))
                (values nil t)))
          #-extensible-compound-types
-         (setf (cl:documentation ',name 'extype) ,doc)
+         (setf (cl:documentation ',name 'extype)
+               ,(format nil "~S is a BASIC COMPOUND TYPE~%~A" name doc))
          #+extensible-compound-types
-         (setf (cl:documentation ',name 'type) ,doc)
+         (setf (cl:documentation ',name 'type)
+               ,(format nil "~S is a BASIC COMPOUND TYPE~%~A" name doc))
          t))))
 
 (defun undefine-compound-type (name)

@@ -24,7 +24,12 @@
   (let ((t1 (simplify-or-type type1)))
     (cond ((and (listp t1)
                 (eq 'or (first t1)))
-           (values (some (lambda (t1) (intersect-type-p t1 type2 env))
+           (values (some (lambda (t1)
+                           (multiple-value-bind (intersectp knownp)
+                               (intersect-type-p t1 type2 env)
+                             (if knownp
+                                 intersectp
+                                 (return-from %intersect-type-p (values nil nil)))))
                          (rest t1))
                    t))
           (t
@@ -34,8 +39,11 @@
 
 (defmethod %intersect-type-p (t2-name (t1-name (eql 'or))
                               type2 type1 &optional env)
-  (%intersect-type-p t1-name t2-name type1 type2 env))
+  (multiple-value-bind (intersectp knownp)
+      (%intersect-type-p t1-name t2-name type1 type2 env)
+    (values intersectp knownp)))
 
+;; TODO: Abstract into a DEFINE-MUTUALLY-EXCLUSIVE-TYPES macro
 (macrolet ((def (type1 type2)
              `(progn
                 (defmethod %intersect-type-p ((t1 (eql ',type1)) (t2 (eql ',type2))
@@ -45,5 +53,12 @@
                 (defmethod %intersect-type-p ((t1 (eql ',type2)) (t2 (eql ',type1))
                                               type1 type2 &optional env)
                   (declare (ignore t1 t2 type1 type2 env))
+                  (values nil t))
+                (defmethod %subtypep ((n1 (eql ',type1)) (n2 (eql ',type2)) t1 t2 &optional env)
+                  (declare (ignore n1 n2 t1 t2 env))
+                  (values nil t))
+                (defmethod %subtypep ((n1 (eql ',type2)) (n2 (eql ',type1)) t1 t2 &optional env)
+                  (declare (ignore n1 n2 t1 t2 env))
                   (values nil t)))))
-  (def list array))
+  (def list array)
+  (def symbol array))

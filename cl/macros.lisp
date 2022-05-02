@@ -5,7 +5,8 @@
     (multiple-value-bind (extype-decl remaining-decls)
         (extract-declaration decl 'ex:extype)
       (multiple-value-bind (type-decl remaining-decls-2)
-          (extract-declaration decl 'ex:type)
+          #+extensible-compound-types (extract-declaration decl 'ex:type)
+          #-extensible-compound-types nil
         #+extensible-compound-types
         (setq extype-decl (cond ((and extype-decl type-decl)
                                  (append extype-decl
@@ -29,7 +30,8 @@
 
 (5am:def-test excl:lambda ()
   (5am:is-true (eval `(excl:lambda (x) "" (declare (type integer x)) x)))
-  (5am:is-true (eval `(excl:lambda (x) "" x)))
+  (5am:is-true (eval `(excl:lambda (x) ""
+                        x)))
   (5am:is-true (eval `(excl:lambda (x) "" (declare (excl:extype integer x)) x))))
 
 (defmacro excl:defun (name lambda-list &body body &environment env)

@@ -152,13 +152,25 @@ TODO: Improve documentation for this."
                                  (car type2))))
              (%intersect-type-p type1-name type2-name type1 type2 env))))))
 
-(defgeneric %intersect-type-p (type1-name type2-name type1 type2 &optional env))
+(defgeneric %intersect-type-p (type1-name type2-name type1 type2 &optional env)
+  (:documentation "INTERSECT-TYPE-P guarantees that this generic function is called only
+after both TYPE1 and TYPE2 are expanded."))
 
 (defmethod %intersect-type-p (type1-name type2-name type1 type2 &optional env)
-  (declare (ignore type1-name type2-name env))
-  (if (equalp type1 type2)
-      (values t t)
-      (values nil nil)))
+  (declare (ignore type1-name type2-name))
+  (cond ((equalp type1 type2)
+         (values t t))
+        ((and (atom type1)
+              (atom type2)
+              (find-class type1 nil env)
+              (find-class type2 nil env))
+         (multiple-value-bind (subtypep knownp)
+             (cl:subtypep `(and ,type1 ,type2) nil env)
+           (if knownp
+               (values (not subtypep) knownp)
+               (values nil nil))))
+        (t
+         (values nil nil))))
 
 (defun intersection-null-p (env &rest type-specifiers)
   (loop :for (type1 . rest) :on type-specifiers
@@ -172,11 +184,18 @@ TODO: Improve documentation for this."
                                (return-from intersection-null-p (values nil t)))
                               ((not knownp)
                                (setq all-known-p nil)))))
-        :finally (if all-known-p
-                     (return-from intersection-null-p (values t t))
-                     (return-from intersection-null-p (values nil nil)))))
+        :finally (return-from intersection-null-p
+                   (cond ((null type-specifiers)
+                          (values t t))
+                         ((null (rest type-specifiers)) ; there's just one specifier
+                          (values nil t))
+                         (all-known-p
+                          (values t t))
+                         (t
+                          (values nil nil))))))
 
 (5am:def-test intersection-null-p ()
+  (5am:is-false (intersection-null-p nil 'vector))
   (5am:is-false (intersection-null-p nil 'simple-string 'string))
   (5am:is-false (intersection-null-p nil 'string 'simple-string))
   (5am:is-true  (intersection-null-p nil 'string 'integer))
