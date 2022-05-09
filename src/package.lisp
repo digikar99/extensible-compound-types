@@ -35,7 +35,11 @@
            #:upgraded-cl-type
            #:%upgraded-cl-type
 
-           #:unknown-type-specifier))
+           #:*excluded-packages-for-cl-deftype*
+
+           #:unknown-type-specifier)
+  (:import-from :trivial-types
+                #:character-designator))
 
 (defpackage :extensible-compound-types.impl
   (:use :cl :extensible-compound-types :alexandria)
@@ -61,6 +65,8 @@
    #:the
 
    #:unknown-type-specifier)
+  (:import-from :trivial-types
+                #:character-designator)
   (:import-from :cl-environments.cltl2
                 #:parse-macro
                 #:define-declaration
@@ -119,11 +125,20 @@
       (setf (gethash name *type-expanders*) lambda)
       (remhash name *type-expanders*)))
 
+(defvar *excluded-packages-for-cl-deftype*
+  (mapcar #'find-package '(:cl :alexandria :trivial-types))
+  "EXTENSIBLE-COMPOUND-TYPES:DEFTYPE avoids adding a CL:DEFTYPE if the NAME is
+a symbol in package excluded in this list.")
+(cl:declaim (type list *excluded-packages-for-cl-deftype*))
+
 (defmacro deftype (name lambda-list &body body &environment env)
-  "Useful for defining type aliases, example: (DEFTYPE INT32 () '(SIGNED-BYTE 32))"
+  "Useful for defining type aliases, example: (DEFTYPE INT32 () '(SIGNED-BYTE 32))
+
+Depending on the value of *EXCLUDED-PACKAGES-FOR-CL-DEFTYPE*,
+also adds a CL:DEFTYPE with the expansion being determined by UPGRADED-CL-TYPE"
   (multiple-value-bind (body decl doc) (parse-body body :documentation t)
     `(progn
-       ,(unless (eq (find-package :cl) (symbol-package name))
+       ,(unless (member (symbol-package name) *excluded-packages-for-cl-deftype*)
           `(cl:deftype ,name ,lambda-list
              (upgraded-cl-type `(,',name ,@',lambda-list))))
        (eval-when (:compile-toplevel :load-toplevel :execute)

@@ -44,9 +44,14 @@
 
 (defmacro define-compound-type (name-spec (object-name &rest lambda-list) &body body)
   "EXTENSIBLE-COMPOUND-TYPES:TYPEP relies on these whenever TYPE supplied is
-non-atomic and non-class.
+  non-atomic and non-class.
 
 NAME-SPEC can be either NAME or (NAME &KEY (NON-NULL T))
+
+Note: Whenever possible, it is recommended to use EXTENSIBLE-COMPOUND-TYPES:DEFTYPE
+  and only use EXTENSIBLE-COMPOUND-TYPES:DEFINE-COMPOUND-TYPE as a last resort.
+  Use of DEFINE-COMPOUND-TYPE also entails getting the %SUBTYPEP and %INTERSECT-TYPE-P
+  methods correct.
 "
   (destructuring-bind (name &key (non-null t)) (ensure-list name-spec)
     (let ((doc (nth-value 2 (parse-body body :documentation t))))
@@ -69,7 +74,10 @@ NAME-SPEC can be either NAME or (NAME &KEY (NON-NULL T))
                ,(format nil "~S is a BASIC COMPOUND TYPE~%~A" name doc))
          #+extensible-compound-types
          (setf (cl:documentation ',name 'type)
-               ,(format nil "~S is a BASIC COMPOUND TYPE~%~A" name doc))
+               ,(format nil (if doc
+                                "~S is a PRIMITIVE COMPOUND TYPE~%~A"
+                                "~S is a PRIMITIVE COMPOUND TYPE")
+                        name doc))
          t))))
 
 (defun undefine-compound-type (name)
@@ -141,7 +149,7 @@ NAME-SPEC can be either NAME or (NAME &KEY (NON-NULL T))
                        (> (second (assoc 'speed (declaration-information 'optimize env)))
                           (second (assoc 'safety (declaration-information 'optimize env)))))))
     (compiler-macro-notes:with-notes
-        (form nil
+        (form env
          :unwind-on-signal t
          :optimization-note-condition optimize)
       (unless (and (constantp type-form)

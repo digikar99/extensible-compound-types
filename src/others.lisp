@@ -173,6 +173,9 @@ after both TYPE1 and TYPE2 are expanded."))
          (values nil nil))))
 
 (defun intersection-null-p (env &rest type-specifiers)
+  ;; Intersection is NULL if the intersection of any two type specifiers is NULL.
+  ;; However, even if the intersection of all 2-combinations of type specifiers is non-NULL,
+  ;; the intersection can still be NULL because each combination might intersect at a different place.
   (loop :for (type1 . rest) :on type-specifiers
         :with all-known-p := t
         :while all-known-p
@@ -180,18 +183,19 @@ after both TYPE1 and TYPE2 are expanded."))
                   :while all-known-p
                   :do (multiple-value-bind (intersectp knownp)
                           (intersect-type-p type1 type2 env)
-                        (cond ((and knownp intersectp)
-                               (return-from intersection-null-p (values nil t)))
+                        (cond ((and knownp (not intersectp))
+                               (return-from intersection-null-p (values t t)))
                               ((not knownp)
                                (setq all-known-p nil)))))
         :finally (return-from intersection-null-p
                    (cond ((null type-specifiers)
                           (values t t))
-                         ((null (rest type-specifiers)) ; there's just one specifier
+                         ((null (cdr type-specifiers)) ; there's just one specifier
+                          (values nil t))
+                         ((and all-known-p
+                               (null (cddr type-specifiers)))
                           (values nil t))
                          (all-known-p
-                          (values t t))
-                         (t
                           (values nil nil))))))
 
 (5am:def-test intersection-null-p ()

@@ -4,7 +4,8 @@
                "cl-environments"
                "compiler-macro-notes"
                "fiveam"
-               "in-nomine")
+               "in-nomine"
+               "trivial-types")
   :description "EXTENSIBLE-COMPOUND-TYPES for user-defined compound-types like (array &optional element-type dimension-spec)"
   :author "Shubhamkar B. Ayare (digikar)"
   :version "0.0.0" ; alpha
@@ -17,7 +18,8 @@
                (:file "cl-compound-types")
                (:file "compound-only-type-specifiers")
                (:file "intersect-type-p")
-               (:file "subtypep"))
+               (:file "subtypep")
+               (:file "designators"))
   :perform (test-op (o c)
              (eval (read-from-string "(LET ((5AM:*ON-FAILURE* :DEBUG)
                                             (5AM:*ON-ERROR* :DEBUG))

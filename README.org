@@ -39,7 +39,7 @@ Towards this, a =extensible-compound-types-cl= system and package is also provid
 
 ** #+EXTENSIBLE-COMPOUND-TYPES
 
-If CL:*FEATURES* constains :EXTENSIBLE-COMPOUND-TYPES, then we also shadow CL:TYPE itself using EXTENSIBLE-COMPOUND-TYPES:TYPE. Otherwise, one needs to use EXTENSIBLE-COMPOUND-TYPES:EXTYPE. The goal for doing this is to allow for both side-by-side usage, as well as a complete replacement.
+If CL:*FEATURES* contains :EXTENSIBLE-COMPOUND-TYPES, then we also shadow CL:TYPE itself using EXTENSIBLE-COMPOUND-TYPES:TYPE. Otherwise, one needs to use EXTENSIBLE-COMPOUND-TYPES:EXTYPE. The goal for doing this is to allow for both side-by-side usage, as well as a complete replacement. FIXME: Flexible usage is problematic, also depends on what choices the systems that depend on extensible-compound-types make.
 
 * Contents
 :PROPERTIES:
@@ -52,6 +52,7 @@ If CL:*FEATURES* constains :EXTENSIBLE-COMPOUND-TYPES, then we also shadow CL:TY
   - [[#extensible-compound-types][#+EXTENSIBLE-COMPOUND-TYPES]]
 - [[#contents][Contents]]
 - [[#example-code][Example Code]]
+- [[#limitations-and-caveats][Limitations and Caveats]]
 - [[#core-api-for-using-as-a-shadowing-package][Core API for using as a shadowing package]]
 - [[#additional-tools][Additional tools]]
 - [[#extensible-compound-types-api][Extensible Compound Types API]]
@@ -128,14 +129,52 @@ To use this type in a =(declare (extype ...))= declaration, one also needs to de
 
 More examples for this can be found in the [[file:src/cl-compound-types.lisp][src/cl-compound-types.lisp]].
 
+* Limitations and Caveats
+
+- It doesn't give you truly parametric types in the sense of ML-like languages; the most you can get is one level of parametric-ism
+- Getting %subtypep and %intersect-type-p working correctly for non-trivial types can be difficult if not impossible. For instance, consider the case of character-designator: one could certainly define it as:
+
+#+BEGIN_SRC lisp
+(define-compound-type character-designator (o)
+  (or (characterp o)
+      (and (stringp o)
+           (= 1 (length o)))
+      (and (symbolp o)
+           (= 1 (length (symbol-name o))))))
+#+END_SRC
+
+  However, now, getting all and more of the following to hold seems non-trivial:
+
+#+BEGIN_SRC lisp
+(subtypep 'character-designator 'character) ;=> NIL T, because it can also be a symbol
+(subtypep 'character-designator 'symbol) ;=> NIL T
+(subtypep 'character-designator 'string) ;=> NIL T
+(subtypep 'character-designator '(or character symbol string)) ;=> T T
+(subtypep 'character 'character-designator) ;=> T T
+(subtypep '(or character string) 'character-designator) ;=> NIL T
+(subtypep '(or character (string 1)) 'character-designator) ;=> T T
+#+END_SRC
+
+  That is why, =define-compound-type= should be used as a last resort when =deftype= does not let you do what you want.
+
+- extensible-compound-types is also not infinitely powerful. In an attempt to keep the API simpler (compared to CTYPE), no explicit methods have been provided for conjunction and disjunction. One of the implications of this is that it is not always possible to tell whether or not (and ...) is NIL or not, for instance =(subtypep '(and listp (not null) symbol) nil) ;=> NIL NIL=.
+
+  To understand this, consider that I have three types t1, t2, t3 denoting the set of elements (a b c), (c d e), (e f a) respectively. In actuality, the programming language won't allow us to literally list the elements a b c d e f etc, but I'm assuming this literal listing for purposes of understanding.
+
+  Now, I want to check for (subtypep '(and t1 t2 t3) nil) in a way that will allow extending the algorithm to beyond 2 or 3 types; so, the algorithm should work even when there is a t4 or t5. The current approach reduces the 3-types case to whether the intersection of any two of these is null. However, this is incomplete, since as in the example above, it is possible that even if any two of these have a non-nil intersection, all the three (or more) of them taken together have a nil intersection.
+
+  SBCL and CTYPE handle this this by reducing (and list (not null)) to cons; but that involves the implementation of disjunction and conjunctions for *every* pair of (user-defined) primitive types. And I want to avoid this since this seems to complicate the API quite a bit. PS: I'd be glad to know if there is a better way out!
+  
 * Core API for using as a shadowing package
 
+- type-specifier-p
 - typep
 - subtypep
 - deftype
 - check-type
 - the
 - unknown-type-specifier
+- =*excluded-packages-for-cl-deftype*=
 
 * Additional tools
 
@@ -146,6 +185,7 @@ More examples for this can be found in the [[file:src/cl-compound-types.lisp][sr
 - type=
 - supertypep
 - intersect-type-p
+- intersection-null-p
 - =*the-skip-predicates*=
 
 * Extensible Compound Types API
@@ -159,177 +199,177 @@ More examples for this can be found in the [[file:src/cl-compound-types.lisp][sr
 
 * Parametric Types
 
-Combined with [[https://github.com/digikar99/polymorphic-functions/][polymorphic-functions+extensible-compound-types]], one /can/ create a wrapper around =extensible-compound-types= as follows:
+Combined with [[https://github.com/digikar99/polymorphic-functions/][polymorphic-functions+extensible-compound-types]], one /can/ create a wrapper around =extensible-compound-types= as follows. Note that this does not give you truly parametric types in the sense of ML-like languages. Instead, this is more akin to C++ templates.
 
 #+BEGIN_SRC lisp
-  (push :extensible-compound-types cl:*features*)
-  (ql:quickload "polymorphic-functions+extensible-compound-types")
+(push :extensible-compound-types cl:*features*)
+(ql:quickload "polymorphic-functions+extensible-compound-types")
 
-  (cl:defpackage parametric-types-demo
-    (:use :extensible-compound-types-cl :polymorphic-functions))
+(cl:defpackage parametric-types-demo
+  (:use :extensible-compound-types-cl :polymorphic-functions))
 
-  (in-package :parametric-types-demo)
+(in-package :parametric-types-demo)
 
-  (defstruct pair a b)
+(defstruct pair a b)
 
-  (define-compound-type pair (o &optional (type-a 'cl:*) (type-b 'cl:*))
-    "A user-defined compound-type that allows the specification of the
-  types of the values stored in slots A and B of the structure-class
-  PAIR."
-    (and (cl:typep o 'pair)
-         (with-slots (a b) o
-           (and (if (eq 'cl:* type-a)
-                    t
-                    (cl:typep a type-a))
-                (if (eq 'cl:* type-b)
-                    t
-                    (cl:typep b type-b))))))
+(define-compound-type pair (o &optional (type-a 'cl:*) (type-b 'cl:*))
+  "A user-defined compound-type that allows the specification of the
+types of the values stored in slots A and B of the structure-class
+PAIR."
+  (and (cl:typep o 'pair)
+       (with-slots (a b) o
+         (and (if (eq 'cl:* type-a)
+                  t
+                  (cl:typep a type-a))
+              (if (eq 'cl:* type-b)
+                  t
+                  (cl:typep b type-b))))))
 
-  (defmethod %upgraded-cl-type ((name (eql 'pair)) type &optional env)
-    (declare (ignore type env))
-    name)
+(defmethod %upgraded-cl-type ((name (eql 'pair)) type &optional env)
+  (declare (ignore type env))
+  name)
 
-  (defmethod %subtypep ((t1 (eql 'pair)) (t2 (eql 'pair)) type1 type2 &optional env)
-    (declare (ignore t1 t2 env))
-    (destructuring-bind (&optional (t1a 'cl:*) (t1b 'cl:*)) (rest type1)
-      (destructuring-bind (&optional (t2a 'cl:*) (t2b 'cl:*)) (rest type2)
-        ;; FIXME: This does not look exhaustive
-        (cond ((and (eq t2a 'cl:*) (eq t2b 'cl:*))
-               (values t t))
-              ((and (eq t1a 'cl:*) (eq t2b 'cl:*))
-               ;; t2a is specified, but t1a is not
-               (values nil t))))))
+(defmethod %subtypep ((t1 (eql 'pair)) (t2 (eql 'pair)) type1 type2 &optional env)
+  (declare (ignore t1 t2 env))
+  (destructuring-bind (&optional (t1a 'cl:*) (t1b 'cl:*)) (rest type1)
+    (destructuring-bind (&optional (t2a 'cl:*) (t2b 'cl:*)) (rest type2)
+      ;; FIXME: This does not look exhaustive
+      (cond ((and (eq t2a 'cl:*) (eq t2b 'cl:*))
+             (values t t))
+            ((and (eq t1a 'cl:*) (eq t2b 'cl:*))
+             ;; t2a is specified, but t1a is not
+             (values nil t))))))
 
-  (defmethod %deparameterize-type ((car (eql 'pair)) type-specifier &optional env)
-    (declare (ignore type-specifier env))
-    car)
+(defmethod %deparameterize-type ((car (eql 'pair)) type-specifier &optional env)
+  (declare (ignore type-specifier env))
+  car)
 
-  (defmethod parametric-type-run-time-lambda-body ((type-car (eql 'pair)) type-cdr parameter)
-    (let ((accessor (cond ((eq parameter (first type-cdr))
-                           'pair-a)
-                          ((eq parameter (second type-cdr))
-                           'pair-b))))
-      `(cl:lambda (pair)
-         (declare (optimize speed)
-                  (type pair pair))
-         ;; FIXME: One needs a wrapper around TYPE-OF, since TYPE-OF may not
-         ;; return what one expects; example:
-         ;; (TYPE-OF 1) ;=> BIT
-         (type-of (,accessor pair)))))
+(defmethod parametric-type-run-time-lambda-body ((type-car (eql 'pair)) type-cdr parameter)
+  (let ((accessor (cond ((eq parameter (first type-cdr))
+                         'pair-a)
+                        ((eq parameter (second type-cdr))
+                         'pair-b))))
+    `(cl:lambda (pair)
+       (declare (optimize speed)
+                (type pair pair))
+       ;; FIXME: One needs a wrapper around TYPE-OF, since TYPE-OF may not
+       ;; return what one expects; example:
+       ;; (TYPE-OF 1) ;=> BIT
+       (type-of (,accessor pair)))))
 
-  (defmethod parametric-type-compile-time-lambda-body
-      ((type-car (eql 'pair)) type-cdr parameter)
-    `(cl:lambda (elt-type)
-       (destructuring-bind (&optional (type-a t) (type-b t)) (rest elt-type)
-         (declare (ignorable type-a type-b))
-         (when (eq cl:* type-a) (setq type-a t))
-         (when (eq cl:* type-b) (setq type-b t))
-         ,(cond ((eq parameter (first type-cdr))
-                 `type-a)
-                ((eq parameter (second type-cdr))
-                 `type-b)
-                (t
-                 (error "Unknown case"))))))
+(defmethod parametric-type-compile-time-lambda-body
+    ((type-car (eql 'pair)) type-cdr parameter)
+  `(cl:lambda (elt-type)
+     (destructuring-bind (&optional (type-a t) (type-b t)) (rest elt-type)
+       (declare (ignorable type-a type-b))
+       (when (eq cl:* type-a) (setq type-a t))
+       (when (eq cl:* type-b) (setq type-b t))
+       ,(cond ((eq parameter (first type-cdr))
+               `type-a)
+              ((eq parameter (second type-cdr))
+               `type-b)
+              (t
+               (error "Unknown case"))))))
 
-  (let ((*parametric-type-symbol-predicates*
-          (list (lambda (s)
-                  (let* ((name (symbol-name s))
-                         (len  (length name)))
-                    (and (char= #\< (elt name 0))
-                         (char= #\> (elt name (1- len)))))))))
-    (eval `(progn
-             (define-polymorphic-function slot-a (object) :overwrite t)
-             (defpolymorph slot-a ((o (pair <a> <b>))) <a>
-               (pair-a o))
-             (define-polymorphic-function slot-b (object) :overwrite t)
-             (defpolymorph slot-b ((o (pair <a> <b>))) <b>
-               (pair-b o)))))
+(let ((*parametric-type-symbol-predicates*
+        (list (lambda (s)
+                (let* ((name (symbol-name s))
+                       (len  (length name)))
+                  (and (char= #\< (elt name 0))
+                       (char= #\> (elt name (1- len)))))))))
+  (eval `(progn
+           (define-polymorphic-function slot-a (object) :overwrite t)
+           (defpolymorph slot-a ((o (pair <a> <b>))) <a>
+             (pair-a o))
+           (define-polymorphic-function slot-b (object) :overwrite t)
+           (defpolymorph slot-b ((o (pair <a> <b>))) <b>
+             (pair-b o)))))
 
-  ;;; Exercise for the reader: Write a compiler-macro that emits appropriate compiler-notes
-  (disassemble (lambda (o)
-                 (declare (extype (pair fixnum fixnum) o)
-                          (optimize speed))
-                 (cl:+ (pair-a o)
-                       (pair-b o))))
-  ;=> On SBCL: contains a call to GENERIC-+
-  ; Size: 28 bytes. Origin: #x53ACFD74                          ; (COMMON-LISP:LAMBDA
-  ;                                                                   (O))
-  ; 74:       488B4205         MOV RAX, [RDX+5]
-  ; 78:       488B7A0D         MOV RDI, [RDX+13]
-  ; 7C:       488BD0           MOV RDX, RAX
-  ; 7F:       FF1425F000A052   CALL QWORD PTR [#x52A000F0]      ; GENERIC-+
-  ; 86:       488BE5           MOV RSP, RBP
-  ; 89:       F8               CLC
-  ; 8A:       5D               POP RBP
-  ; 8B:       C3               RET
-  ; 8C:       CC10             INT3 16                          ; Invalid argument count trap
-  ; 8E:       CC10             INT3 16                          ; Invalid argument count trap
+;;; Exercise for the reader: Write a compiler-macro that emits appropriate compiler-notes
+(disassemble (lambda (o)
+               (declare (extype (pair fixnum fixnum) o)
+                        (optimize speed))
+               (cl:+ (pair-a o)
+                     (pair-b o))))
+;=> On SBCL: contains a call to GENERIC-+
+; Size: 28 bytes. Origin: #x53ACFD74                          ; (COMMON-LISP:LAMBDA
+;                                                                   (O))
+; 74:       488B4205         MOV RAX, [RDX+5]
+; 78:       488B7A0D         MOV RDI, [RDX+13]
+; 7C:       488BD0           MOV RDX, RAX
+; 7F:       FF1425F000A052   CALL QWORD PTR [#x52A000F0]      ; GENERIC-+
+; 86:       488BE5           MOV RSP, RBP
+; 89:       F8               CLC
+; 8A:       5D               POP RBP
+; 8B:       C3               RET
+; 8C:       CC10             INT3 16                          ; Invalid argument count trap
+; 8E:       CC10             INT3 16                          ; Invalid argument count trap
 
-  (disassemble (lambda (o)
-                 (declare (extype (pair fixnum fixnum) o)
-                          (optimize speed))
-                 (cl:+ (slot-a o)
-                       (slot-b o))))
-  ;=> On SBCL: direct addition, without a call to GENRIC-+
-  ; Size: 61 bytes. Origin: #x53ACFC34                          ; (COMMON-LISP:LAMBDA
-  ;                                                                   (O))
-  ; 34:       488B4A05         MOV RCX, [RDX+5]
-  ; 38:       F6C101           TEST CL, 1
-  ; 3B:       752D             JNE L2
-  ; 3D:       48D1F9           SAR RCX, 1
-  ; 40:       488B520D         MOV RDX, [RDX+13]
-  ; 44:       F6C201           TEST DL, 1
-  ; 47:       751E             JNE L1
-  ; 49:       48D1FA           SAR RDX, 1
-  ; 4C:       4801D1           ADD RCX, RDX
-  ; 4F:       48D1E1           SHL RCX, 1
-  ; 52:       710A             JNO L0
-  ; 54:       48D1D9           RCR RCX, 1
-  ; 57:       FF14254801A052   CALL QWORD PTR [#x52A00148]      ; ALLOC-SIGNED-BIGNUM-IN-RCX
-  ; 5E: L0:   488BD1           MOV RDX, RCX
-  ; 61:       488BE5           MOV RSP, RBP
-  ; 64:       F8               CLC
-  ; 65:       5D               POP RBP
-  ; 66:       C3               RET
-  ; 67: L1:   CC4F             INT3 79                          ; OBJECT-NOT-FIXNUM-ERROR
-  ; 69:       08               BYTE #X08                        ; RDX(d)
-  ; 6A: L2:   CC4F             INT3 79                          ; OBJECT-NOT-FIXNUM-ERROR
-  ; 6C:       04               BYTE #X04                        ; RCX(d)
-  ; 6D:       CC10             INT3 16                          ; Invalid argument count trap
-  ; 6F:       CC10             INT3 16                          ; Invalid argument count trap
+(disassemble (lambda (o)
+               (declare (extype (pair fixnum fixnum) o)
+                        (optimize speed))
+               (cl:+ (slot-a o)
+                     (slot-b o))))
+;=> On SBCL: direct addition, without a call to GENRIC-+
+; Size: 61 bytes. Origin: #x53ACFC34                          ; (COMMON-LISP:LAMBDA
+;                                                                   (O))
+; 34:       488B4A05         MOV RCX, [RDX+5]
+; 38:       F6C101           TEST CL, 1
+; 3B:       752D             JNE L2
+; 3D:       48D1F9           SAR RCX, 1
+; 40:       488B520D         MOV RDX, [RDX+13]
+; 44:       F6C201           TEST DL, 1
+; 47:       751E             JNE L1
+; 49:       48D1FA           SAR RDX, 1
+; 4C:       4801D1           ADD RCX, RDX
+; 4F:       48D1E1           SHL RCX, 1
+; 52:       710A             JNO L0
+; 54:       48D1D9           RCR RCX, 1
+; 57:       FF14254801A052   CALL QWORD PTR [#x52A00148]      ; ALLOC-SIGNED-BIGNUM-IN-RCX
+; 5E: L0:   488BD1           MOV RDX, RCX
+; 61:       488BE5           MOV RSP, RBP
+; 64:       F8               CLC
+; 65:       5D               POP RBP
+; 66:       C3               RET
+; 67: L1:   CC4F             INT3 79                          ; OBJECT-NOT-FIXNUM-ERROR
+; 69:       08               BYTE #X08                        ; RDX(d)
+; 6A: L2:   CC4F             INT3 79                          ; OBJECT-NOT-FIXNUM-ERROR
+; 6C:       04               BYTE #X04                        ; RCX(d)
+; 6D:       CC10             INT3 16                          ; Invalid argument count trap
+; 6F:       CC10             INT3 16                          ; Invalid argument count trap
 
-  (disassemble (lambda (o)
-                 (declare (extype (pair single-float single-float) o)
-                          (optimize speed))
-                 (cl:+ (slot-a o)
-                       (slot-b o))))
-  ;=> On SBCL: direct addition, without a call to GENRIC-+
-  ; Size: 65 bytes. Origin: #x53ACFAE4                          ; (COMMON-LISP:LAMBDA
-  ;                                                                   (O))
-  ; AE4:       488B4205         MOV RAX, [RDX+5]
-  ; AE8:       3C19             CMP AL, 25
-  ; AEA:       7532             JNE L1
-  ; AEC:       66480F6EC8       MOVQ XMM1, RAX
-  ; AF1:       0FC6C9FD         SHUFPS XMM1, XMM1, #4r3331
-  ; AF5:       488B420D         MOV RAX, [RDX+13]
-  ; AF9:       3C19             CMP AL, 25
-  ; AFB:       751E             JNE L0
-  ; AFD:       66480F6ED0       MOVQ XMM2, RAX
-  ; B02:       0FC6D2FD         SHUFPS XMM2, XMM2, #4r3331
-  ; B06:       F30F58D1         ADDSS XMM2, XMM1
-  ; B0A:       660F7ED2         MOVD EDX, XMM2
-  ; B0E:       48C1E220         SHL RDX, 32
-  ; B12:       80CA19           OR DL, 25
-  ; B15:       488BE5           MOV RSP, RBP
-  ; B18:       F8               CLC
-  ; B19:       5D               POP RBP
-  ; B1A:       C3               RET
-  ; B1B: L0:   CC4C             INT3 76                         ; OBJECT-NOT-SINGLE-FLOAT-ERROR
-  ; B1D:       00               BYTE #X00                       ; RAX(d)
-  ; B1E: L1:   CC4C             INT3 76                         ; OBJECT-NOT-SINGLE-FLOAT-ERROR
-  ; B20:       00               BYTE #X00                       ; RAX(d)
-  ; B21:       CC10             INT3 16                         ; Invalid argument count trap
-  ; B23:       CC10             INT3 16                         ; Invalid argument count trap
+(disassemble (lambda (o)
+               (declare (extype (pair single-float single-float) o)
+                        (optimize speed))
+               (cl:+ (slot-a o)
+                     (slot-b o))))
+;=> On SBCL: direct addition, without a call to GENRIC-+
+; Size: 65 bytes. Origin: #x53ACFAE4                          ; (COMMON-LISP:LAMBDA
+;                                                                   (O))
+; AE4:       488B4205         MOV RAX, [RDX+5]
+; AE8:       3C19             CMP AL, 25
+; AEA:       7532             JNE L1
+; AEC:       66480F6EC8       MOVQ XMM1, RAX
+; AF1:       0FC6C9FD         SHUFPS XMM1, XMM1, #4r3331
+; AF5:       488B420D         MOV RAX, [RDX+13]
+; AF9:       3C19             CMP AL, 25
+; AFB:       751E             JNE L0
+; AFD:       66480F6ED0       MOVQ XMM2, RAX
+; B02:       0FC6D2FD         SHUFPS XMM2, XMM2, #4r3331
+; B06:       F30F58D1         ADDSS XMM2, XMM1
+; B0A:       660F7ED2         MOVD EDX, XMM2
+; B0E:       48C1E220         SHL RDX, 32
+; B12:       80CA19           OR DL, 25
+; B15:       488BE5           MOV RSP, RBP
+; B18:       F8               CLC
+; B19:       5D               POP RBP
+; B1A:       C3               RET
+; B1B: L0:   CC4C             INT3 76                         ; OBJECT-NOT-SINGLE-FLOAT-ERROR
+; B1D:       00               BYTE #X00                       ; RAX(d)
+; B1E: L1:   CC4C             INT3 76                         ; OBJECT-NOT-SINGLE-FLOAT-ERROR
+; B20:       00               BYTE #X00                       ; RAX(d)
+; B21:       CC10             INT3 16                         ; Invalid argument count trap
+; B23:       CC10             INT3 16                         ; Invalid argument count trap
 #+END_SRC
 
 * TODO Needs more work 

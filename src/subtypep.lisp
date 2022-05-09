@@ -47,16 +47,14 @@
            (multiple-value-bind (null knownp) (apply #'intersection-null-p env (rest type1))
              (cond ((and knownp null)
                     (values t t))
-                   ((not knownp)
-                    (values nil nil))
+                   ;; ((not knownp)
+                   ;;  (values nil nil))
                    (t
                     (values (some (lambda (type)
                                     (multiple-value-bind (subtypep knownp)
                                         (subtypep type type2 env)
-                                      (if knownp
-                                          subtypep
-                                          (return-from %subtypep
-                                            (values nil nil)))))
+                                      ;; We want at least one type to be a known subtype
+                                      (and knownp subtypep)))
                                   (rest type1))
                             t)))))
           (t
@@ -150,7 +148,8 @@
   (labels ((dim-subtype-p (dim1 dim2)
              (cond ((and (atom dim1) (atom dim2))
                     (or (eq dim2 'cl:*)
-                        (= dim1 dim2)))
+                        (and (not (eq dim1 'cl:*))
+                             (= dim1 dim2))))
                    ((and (atom dim2) (eq dim2 'cl:*))
                     t)
                    ((atom dim1)
@@ -186,3 +185,58 @@
   (declare (ignore t1 t2))
   (%subtypep 'array 'array `(array ,@(rest type1)) `(array ,@(rest type2)) env))
 
+(defmethod %subtypep ((n1 (eql 'array)) (n2 (eql 'sequence)) t1 t2 &optional env)
+  (multiple-value-bind (subtypep knownp) (subtypep t1 'vector env)
+    (values subtypep knownp)))
+
+(defmethod %subtypep ((n1 (eql 'simple-array)) (n2 (eql 'sequence)) t1 t2 &optional env)
+  (multiple-value-bind (subtypep knownp) (subtypep t1 'simple-vector env)
+    (values subtypep knownp)))
+
+(defmethod %subtypep ((n1 (eql 'complex)) (n2 (eql 'complex)) t1 t2 &optional env)
+  (declare (ignore n1 n2 env))
+  (destructuring-bind (c1 &optional (elt1 'cl:*)) (ensure-list t1)
+    (declare (ignore c1))
+    (destructuring-bind (c2 &optional (elt2 'cl:*)) (ensure-list t2)
+      (declare (ignore c2))
+      (cond ((and (eq 'cl:* elt1) (eq 'cl:* elt2))
+             (values t t))
+            ((eq 'cl:* elt1)
+             ;; TYPE1 is specific; TYPE2 is not
+             (values nil t))
+            ((eq 'cl:* elt2)
+             (values t t))
+            (t
+             (multiple-value-bind (type= knownp) (type= elt1 elt2)
+               (values type= knownp)))))))
+
+(defmethod %subtypep ((n1 (eql 'complex)) n2 t1 t2 &optional env)
+  (declare (ignore n1 n2 t1 t2 env))
+  (values nil t))
+
+(defmethod %subtypep (n1 (n2 (eql 'complex)) t1 t2 &optional env)
+  (declare (ignore n1 n2 t1 t2 env))
+  (values nil t))
+
+#+sbcl
+(progn
+  (defmethod %subtypep ((n1 (eql 'short-float)) n2 t1 t2 &optional env)
+    (declare (ignore n1 n2))
+    (multiple-value-bind (subtypep knownp)
+        (subtypep `(single-float ,@(rest (ensure-list t1))) t2 env)
+      (values subtypep knownp)))
+  (defmethod %subtypep (n1 (n2 (eql 'short-float)) t1 t2 &optional env)
+    (declare (ignore n1 n2))
+    (multiple-value-bind (subtypep knownp)
+        (subtypep t1 `(single-float ,@(rest (ensure-list t1))) env)
+      (values subtypep knownp)))
+  (defmethod %subtypep ((n1 (eql 'long-float)) n2 t1 t2 &optional env)
+    (declare (ignore n1 n2))
+    (multiple-value-bind (subtypep knownp)
+        (subtypep `(double-float ,@(rest (ensure-list t1))) t2 env)
+      (values subtypep knownp)))
+  (defmethod %subtypep (n1 (n2 (eql 'long-float)) t1 t2 &optional env)
+    (declare (ignore n1 n2))
+    (multiple-value-bind (subtypep knownp)
+        (subtypep t1 `(double-float ,@(rest (ensure-list t2))) env)
+      (values subtypep knownp))))

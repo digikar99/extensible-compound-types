@@ -179,6 +179,8 @@
            (symbol-package o))))
 
 (define-compound-type base-char (o) (cl:typep o 'base-char))
+(define-compound-type character (o) (characterp o))
+(deftype extended-char () `(and character (not base-char)))
 
 (deftype boolean () `(member t nil))
 
