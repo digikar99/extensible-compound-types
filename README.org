@@ -17,13 +17,15 @@ While it might seem like [[http://clhs.lisp.se/Body/m_deftp.htm][CL:DEFTYPE]] al
 
 Recommended usage is:
 
-1. Push =:extensible-compound-types= into =cl:*features*=.
-2. =(ql:quickload "extensible-compound-types-cl")=
-3. =(defpackage your-package (:use :extensible-compound-types-cl))=
+#+BEGIN_SRC lisp
+(cl:pushnew :extensible-compound-types cl:*features*)
+(ql:quickload "extensible-compound-types-cl")
+(defpackage your-package (:use :extensible-compound-types-cl))
+#+END_SRC
 
 ** extensible-compound-types-cl: yet another shadowing CL package
 
-=extensible-compound-types= allow for the definition of user-defined compound types. Unfortunately, this requires nothing less than shadowing the symbols in the CL package. We start out with a user-defined declaration (CLTL2) EXTYPE or EXTENSIBLE-COMPOUND-TYPES:TYPE. However, to actually use the compiler's built-in type safety and optimization, one needs to modify the CL:TYPE declarations, but while doing so:
+=extensible-compound-types= allow for the definition of user-defined compound types. Unfortunately, this requires shadowing the symbols in the CL package. We start out with a user-defined declaration (CLTL2) EXTYPE or EXTENSIBLE-COMPOUND-TYPES:TYPE. However, to actually use the compiler's built-in type safety and optimization, one needs to modify the CL:TYPE declarations, but while doing so:
 
 #+BEGIN_QUOTE
 The consequences are undefined if decl-name is a symbol that can appear as the car of any standard declaration specifier.
@@ -155,7 +157,7 @@ More examples for this can be found in the [[file:src/cl-compound-types.lisp][sr
 (subtypep '(or character (string 1)) 'character-designator) ;=> T T
 #+END_SRC
 
-  That is why, =define-compound-type= should be used as a last resort when =deftype= does not let you do what you want.
+  That is why, =define-compound-type= should be used only as a last resort when =deftype= does not let you do what you want.
 
 - extensible-compound-types is also not infinitely powerful. In an attempt to keep the API simpler (compared to CTYPE), no explicit methods have been provided for conjunction and disjunction. One of the implications of this is that it is not always possible to tell whether or not (and ...) is NIL or not, for instance =(subtypep '(and listp (not null) symbol) nil) ;=> NIL NIL=.
 

@@ -5,9 +5,9 @@
   (let ((t1 (simplify-or-type type1))
         (t2 (simplify-or-type type2)))
     (loop :with all-known-p := t
-          :for t1 :in t1
+          :for t1 :in (rest t1)
           :while all-known-p
-          :do (loop :for t2 :in t2
+          :do (loop :for t2 :in (rest t2)
                     :while all-known-p
                     :do (multiple-value-bind (intersectp knownp)
                             (intersect-type-p t1 t2 env)
@@ -51,6 +51,12 @@
              (cond ((and null knownp)
                     (values t t))
                    (t
+                    (when (some (lambda (t1)
+                                  (multiple-value-bind (null knownp)
+                                      (intersection-null-p env t1 t2)
+                                    (and null knownp)))
+                                (rest t1))
+                      (return-from %intersect-type-p (values nil t)))
                     (loop :for t1-list :on (rest t1)
                           :for t11 := (car t1-list)
                           :with all-known-p := t
@@ -103,35 +109,130 @@
                   (t
                    (values nil nil)))))))))
 
-;; TODO: Abstract into a DEFINE-MUTUALLY-EXCLUSIVE-TYPES macro
-(macrolet ((def (type1 type2)
-             `(progn
-                (defmethod %intersect-type-p ((t1 (eql ',type1)) (t2 (eql ',type2))
-                                              type1 type2 &optional env)
-                  (declare (ignore t1 t2 type1 type2 env))
-                  (values nil t))
-                (defmethod %intersect-type-p ((t1 (eql ',type2)) (t2 (eql ',type1))
-                                              type1 type2 &optional env)
-                  (declare (ignore t1 t2 type1 type2 env))
-                  (values nil t))
-                (defmethod %subtypep ((n1 (eql ',type1)) (n2 (eql ',type2)) t1 t2 &optional env)
-                  (declare (ignore n1 n2 t1 t2 env))
-                  (values nil t))
-                (defmethod %subtypep ((n1 (eql ',type2)) (n2 (eql ',type1)) t1 t2 &optional env)
-                  (declare (ignore n1 n2 t1 t2 env))
-                  (values nil t)))))
-  (def list array)
-  (def symbol array)
-  (def character array)
-  (def character symbol)
-  (def character list)
-  (def character integer)
+(defmethod %intersect-type-p
+    ((t1 (eql 'array)) t2 type1 type2 &optional env)
+  (declare (ignore t1 type1))
+  ;; T2 is guaranteed to be type-expanded and be a symbol
+  (if (and (or (symbolp type2)
+               (and (listp type2)
+                    (car type2)
+                    (null (cdr type2))))
+           (find-class t2 nil env))
+      (multiple-value-bind (nullp knownp)
+          (cl:subtypep `(and array ,t2) nil env)
+        (values (not nullp) knownp))
+      (call-next-method)))
+(defmethod %intersect-type-p
+    (t1 (t2 (eql 'array)) type1 type2 &optional env)
+  (%intersect-type-p t2 t1 type2 type1 env))
 
-  (def function array)
+(defmethod %intersect-type-p
+    ((t1 (eql 'simple-array)) t2 type1 type2 &optional env)
+  (declare (ignore t1 type1))
+  ;; T2 is guaranteed to be type-expanded and be a symbol
+  (if (and (or (symbolp type2)
+               (and (listp type2)
+                    (car type2)
+                    (null (cdr type2))))
+           (find-class t2 nil env))
+      (multiple-value-bind (nullp knownp)
+          (cl:subtypep `(and simple-array ,t2) nil env)
+        (values (not nullp) knownp))
+      (values nil nil)))
+(defmethod %intersect-type-p
+    (t1 (t2 (eql 'simple-array)) type1 type2 &optional env)
+  (%intersect-type-p t2 t1 type2 type1 env))
+
+
+(defmacro define-mutually-exclusive-types (&body types &environment env)
+  (loop :for type :in types
+        :do (assert (and (symbolp type)
+                         (or (find-class type nil env)
+                             (compound-type-lambda type)))
+                    ()
+                    "Expected~%  ~S~%to be a symbol and a primitive compound type specifier defined using DEFINE-COMPOUND-TYPE~%but~%  (COMPOUND-TYPE-LAMBDA ~S)~%did not return non-NIL indicating the absence of an appropriate DEFINE-COMPOUND-TYPE form"
+                    type type))
+  (flet ((def (type1 type2)
+           `(progn
+              (defmethod %intersect-type-p ((t1 (eql ',type1)) (t2 (eql ',type2))
+                                            type1 type2 &optional env)
+                (declare (ignore t1 t2 type1 type2 env))
+                (values nil t))
+              (defmethod %intersect-type-p ((t1 (eql ',type2)) (t2 (eql ',type1))
+                                            type1 type2 &optional env)
+                (declare (ignore t1 t2 type1 type2 env))
+                (values nil t))
+              (defmethod %subtypep ((n1 (eql ',type1)) (n2 (eql ',type2)) t1 t2 &optional env)
+                (declare (ignore n1 n2 t1 t2 env))
+                (values nil t))
+              (defmethod %subtypep ((n1 (eql ',type2)) (n2 (eql ',type1)) t1 t2 &optional env)
+                (declare (ignore n1 n2 t1 t2 env))
+                (values nil t)))))
+
+    `(progn
+       ,@(loop :for (t1 . rest) :on types
+               :appending
+               (loop :for t2 :in rest
+                     :collect (def t1 t2))))))
+
+(define-mutually-exclusive-types
+  list array symbol character rational single-float double-float complex function)
+
+(define-mutually-exclusive-types
+  list simple-array symbol character rational single-float double-float complex function)
+
+(define-mutually-exclusive-types
+  cons array symbol character rational single-float double-float complex function)
+
+(define-mutually-exclusive-types
+  cons simple-array symbol character rational single-float double-float complex function)
+
+(define-mutually-exclusive-types
+  list array symbol character integer single-float double-float complex function)
+
+(define-mutually-exclusive-types
+  list simple-array symbol character integer single-float double-float complex function)
+
+(define-mutually-exclusive-types
+  cons array symbol character integer single-float double-float complex function)
+
+(define-mutually-exclusive-types
+  cons simple-array symbol character integer single-float double-float complex function)
+
+(define-mutually-exclusive-types
+  single-float double-float integer)
+(define-mutually-exclusive-types
+  single-float double-float rational)
+
+(define-mutually-exclusive-types
+  null array)
+
+(macrolet ((def (type1 type2)
+             `(define-mutually-exclusive-types
+                ,type1 ,type2)))
+
+  (def character integer)
   (def integer list)
-  (def real list)
   (def float list)
   (def single-float list)
   (def double-float list)
   (def short-float list)
   (def long-float list))
+
+(define-mutually-exclusive-types
+  null array)
+
+(macrolet ((def (type)
+             `(define-mutually-exclusive-types
+                ,type null)))
+
+  (def cons)
+  (def array)
+  (def simple-array)
+  (def character)
+  (def integer)
+  (def float)
+  (def single-float)
+  (def double-float)
+  (def short-float)
+  (def long-float))

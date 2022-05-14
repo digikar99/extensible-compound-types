@@ -54,12 +54,50 @@
 
   ;; TODO: Can this be simplified?
   (def integer)
-  (def float)
-  (def real)
+  (def rational)
   (def single-float)
   (def double-float)
+  #-sbcl
   (def short-float)
+  #-sbcl
   (def long-float))
+
+(defun equivalent-num-type-form (num-type low high)
+  `(,num-type ,(if (eq 'cl:* low)
+                   low
+                   (case num-type
+                     (integer (cl:ceiling low))
+                     (rational (cl:rationalize low))
+                     (t (cl:coerce low num-type))))
+              ,(if (eq 'cl:* high)
+                   high
+                   (case num-type
+                     (integer (cl:floor high))
+                     (rational (cl:rationalize high))
+                     (t (cl:coerce high num-type))))))
+
+(deftype float (&optional (low 'cl:*) (high 'cl:*))
+  #+sbcl
+  `(or ,(equivalent-num-type-form 'single-float low high)
+       ,(equivalent-num-type-form 'double-float low high))
+  #-sbcl
+  (error "FLOAT not implemented"))
+
+(deftype short-float (&optional (low 'cl:*) (high 'cl:*))
+  #+sbcl
+  (equivalent-num-type-form 'single-float low high)
+  #-sbcl
+  (error "SHORT-FLOAT not implemented on ~S" (lisp-implementation-type)))
+
+(deftype long-float (&optional (low 'cl:*) (high 'cl:*))
+  #+sbcl
+  (equivalent-num-type-form 'double-float low high)
+  #-sbcl
+  (error "LONG-FLOAT not implemented on ~S" (lisp-implementation-type)))
+
+(deftype real (&optional (low 'cl:*) (high 'cl:*))
+  `(or ,(equivalent-num-type-form 'rational low high)
+       ,(equivalent-num-type-form 'float low high)))
 
 (deftype signed-byte (&optional (s 'cl:* s-supplied-p))
   (if (not s-supplied-p)
@@ -97,12 +135,8 @@
                  t
                  `(typep (realpart ,o) ',type))))))
 
-(deftype rational (&optional (lower-limit 'cl:*) (upper-limit 'cl:*))
-  `(and (real ,lower-limit ,upper-limit)
-        (not (float ,lower-limit ,upper-limit))))
-(deftype ratio ()
-  `(and rational (not integer)))
-
+(deftype number () `(or real complex))
+(deftype ratio () `(and rational (not integer)))
 
 ;;; This is slower; see above for the faster version
 ;; (macrolet ((def (type)
@@ -178,6 +212,7 @@
        (eq (find-package :keyword)
            (symbol-package o))))
 
+(define-compound-type standard-char (o) (cl:typep o 'standard-char))
 (define-compound-type base-char (o) (cl:typep o 'base-char))
 (define-compound-type character (o) (characterp o))
 (deftype extended-char () `(and character (not base-char)))
