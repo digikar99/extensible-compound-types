@@ -107,7 +107,57 @@
                    ;; Neither is a proper subtype
                    (values t t))
                   (t
-                   (values nil nil)))))))))
+                   (call-next-method)))))))))
+
+(defmethod %intersect-type-p (n1 (n2 (eql 'not)) t1 t2 &optional env)
+  (multiple-value-bind (intersectp knownp)
+      (%intersect-type-p n2 n1 t2 t1 env)
+    (if knownp
+        (values intersectp knownp)
+        (call-next-method))))
+
+(macrolet ((def (type)
+             `(defmethod %intersect-type-p
+                  ((t1 (eql ',type)) (t2 (eql ',type)) type1 type2 &optional env)
+                (declare (ignore t1 t2))
+                (destructuring-bind (&optional (elt1 'cl:*) (dr1 'cl:*)) (rest (ensure-list type1))
+                  (destructuring-bind (&optional (elt2 'cl:*) (dr2 'cl:*)) (rest (ensure-list type2))
+                    (let ((dim-rank-intersect-p (or (and (eq 'cl:* dr1)
+                                                         (eq 'cl:* dr2))
+                                                    (eq 'cl:* dr1)
+                                                    (eq 'cl:* dr2)
+                                                    (and (numberp dr1)
+                                                         (numberp dr2)
+                                                         (= dr1 dr2))
+                                                    (and (numberp dr1)
+                                                         (= dr1 (length dr2)))
+                                                    (and (numberp dr2)
+                                                         (= dr2 (length dr1)))
+                                                    (and (= (length dr1) (length dr2))
+                                                         (loop :for d1 :in dr1
+                                                               :for d2 :in dr2
+                                                               :always (or (eq 'cl:* d1)
+                                                                           (eq 'cl:* d2)
+                                                                           (= d1 d2)))))))
+                      (cond ((and (eq 'cl:* elt1)
+                                  (eq 'cl:* elt2))
+                             (values dim-rank-intersect-p t))
+                            ((or (eq 'cl:* elt1)
+                                 (eq 'cl:* elt2))
+                             (values dim-rank-intersect-p t))
+                            (t
+                             (values (and (type= elt1 elt2 env)
+                                          dim-rank-intersect-p)
+                                     t)))))))))
+  (def array)
+  (def simple-array))
+
+(defmethod %intersect-type-p
+    ((t1 (eql 'array)) (t2 (eql 'simple-array)) type1 type2 &optional env)
+  (%intersect-type-p t1 t1 type1 `(array ,@(rest (ensure-list type2))) env))
+(defmethod %intersect-type-p
+    ((t1 (eql 'simple-array)) (t2 (eql 'array)) type1 type2 &optional env)
+  (%intersect-type-p t2 t2 `(array ,@(rest (ensure-list type1))) type2 env))
 
 (defmethod %intersect-type-p
     ((t1 (eql 'array)) t2 type1 type2 &optional env)
@@ -138,7 +188,7 @@
       (multiple-value-bind (nullp knownp)
           (cl:subtypep `(and simple-array ,t2) nil env)
         (values (not nullp) knownp))
-      (values nil nil)))
+      (call-next-method)))
 (defmethod %intersect-type-p
     (t1 (t2 (eql 'simple-array)) type1 type2 &optional env)
   (%intersect-type-p t2 t1 type2 type1 env))
@@ -216,7 +266,9 @@
   (def float list)
   (def single-float list)
   (def double-float list)
+  #-sbcl
   (def short-float list)
+  #-sbcl
   (def long-float list))
 
 (define-mutually-exclusive-types
@@ -234,5 +286,7 @@
   (def float)
   (def single-float)
   (def double-float)
+  #-sbcl
   (def short-float)
+  #-sbcl
   (def long-float))
