@@ -13,6 +13,19 @@
        (string 1)
        (and symbol (satisfies character-designator-p))))
 
+
+(defun function-designator-p (object)
+  (or (symbolp object)
+      (functionp object)
+      (and (listp object)
+           (eq 'setf (first object))
+           (second object)
+           (null (cddr object)))))
+(deftype trivial-types:function-designator ()
+  `(or symbol
+       function
+       (and list (satisfies function-designator-p))))
+
 ;; (define-compound-type character-designator (o)
 ;;   (or (characterp o)
 ;;       (and (stringp o)
