@@ -117,6 +117,26 @@
   (5am:is-false (subtypep '(or string) 'simple-string))
   (5am:is-true  (subtypep 'simple-string '(or string integer))))
 
+(defmethod %subtypep ((t1-name (eql 'not)) t2-name t1 t2 &optional env)
+  ;; Removing the NOT
+  (optima.extra:let-match (((list _ ts) t1))
+    (multiple-value-bind (intersectp knownp) (intersect-type-p ts t2 env)
+      (cond ((and intersectp knownp)
+             (values nil t))
+            (t
+             (call-next-method))))))
+
+(defmethod %subtypep (t1-name (t2-name (eql 'not)) t1 t2 &optional env)
+  ;; Removing the NOT
+  (optima.extra:let-match (((list _ ts) t2))
+    (multiple-value-bind (intersectp knownp) (intersect-type-p ts t1 env)
+      (cond ((and (not intersectp) knownp)
+             (values t t))
+            (knownp
+             (values nil t))
+            (t
+             (call-next-method))))))
+
 (defmethod %subtypep ((t1-name (eql 'eql)) (t2-name (eql 'eql)) type1 type2 &optional env)
   (declare (ignore t1-name t2-name env))
   (assert (listp type1) (type1))
