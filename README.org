@@ -23,6 +23,16 @@ Recommended usage is:
 (defpackage your-package (:use :extensible-compound-types-cl))
 #+END_SRC
 
+Libraries that provide extensible-compound-types compatible versions:
+
+- [[https://github.com/digikar99/polymorphic-functions/][polymorphic-functions]]
+- [[https://github.com/digikar99/trivial-coerce][trivial-coerce]]
+- [[https://github.com/digikar99/dense-arrays][dense-arrays]]
+- [[https://github.com/digikar99/numericals][numericals]]
+- [[https://github.com/alex-gutev/cl-form-types/][cl-form-types]] ([[https://github.com/digikar99/cl-form-types/][my branch]])
+
+The end goal is indeed that extensible-compound-types-cl should be useable as a drop-in without special modifications, but the above projects have been explicitly tested.
+
 ** extensible-compound-types-cl: yet another shadowing CL package
 
 =extensible-compound-types= allow for the definition of user-defined compound types. Unfortunately, this requires shadowing the symbols in the CL package. We start out with a user-defined declaration (CLTL2) EXTYPE or EXTENSIBLE-COMPOUND-TYPES:TYPE. However, to actually use the compiler's built-in type safety and optimization, one needs to modify the CL:TYPE declarations, but while doing so:
@@ -201,7 +211,7 @@ More examples for this can be found in the [[file:src/cl-compound-types.lisp][sr
 
 * Parametric Types
 
-Combined with [[https://github.com/digikar99/polymorphic-functions/][polymorphic-functions+extensible-compound-types]], one /can/ create a wrapper around =extensible-compound-types= as follows. Note that this does not give you truly parametric types in the sense of ML-like languages. Instead, this is more akin to C++ templates.
+Combined with [[https://github.com/digikar99/polymorphic-functions/][polymorphic-functions]], one /can/ create a wrapper around =extensible-compound-types= as follows. Note that this does not give you truly parametric types in the sense of ML-like languages. Instead, this is more akin to C++ templates.
 
 #+BEGIN_SRC lisp
 (push :extensible-compound-types cl:*features*)
