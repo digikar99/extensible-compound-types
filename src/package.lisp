@@ -127,10 +127,24 @@
       (remhash name *type-expanders*)))
 
 (defvar *excluded-packages-for-cl-deftype*
-  (mapcar #'find-package '(:cl :alexandria :trivial-types))
+  (mapcar #'find-package '(:cl :alexandria :trivial-types :sb-kernel))
   "EXTENSIBLE-COMPOUND-TYPES:DEFTYPE avoids adding a CL:DEFTYPE if the NAME is
 a symbol in package excluded in this list.")
 (cl:declaim (type list *excluded-packages-for-cl-deftype*))
+
+(defun ignore-all-form-from-lambda-list (lambda-list)
+  (let ((vars (loop :for state := 'required
+                    :for form :in lambda-list
+                    :if (member form (cons 'required lambda-list-keywords))
+                      :do (setq state form)
+                    :else
+                      :appending (typecase form
+                                   (symbol (list form))
+                                   (list (case (length form)
+                                           (1 (list (first form)))
+                                           (3 (list (first form)
+                                                    (third form)))))))))
+    `(declare (ignore ,@vars))))
 
 (defmacro deftype (name lambda-list &body body &environment env)
   "Useful for defining type aliases, example: (DEFTYPE INT32 () '(SIGNED-BYTE 32))
@@ -138,25 +152,27 @@ a symbol in package excluded in this list.")
 Depending on the value of *EXCLUDED-PACKAGES-FOR-CL-DEFTYPE*,
 also adds a CL:DEFTYPE with the expansion being determined by UPGRADED-CL-TYPE"
   (multiple-value-bind (body decl doc) (parse-body body :documentation t)
-    `(progn
-       ,(unless (member (symbol-package name) *excluded-packages-for-cl-deftype*)
-          `(cl:deftype ,name ,lambda-list
-             (upgraded-cl-type `(,',name ,@',lambda-list))))
-       (eval-when (:compile-toplevel :load-toplevel :execute)
-         (setf (type-expander ',name)
-               ,(parse-macro name
-                             lambda-list
-                             (append decl body)
-                             env))
-         #-extensible-compound-types
-         (setf (symbol-extype ',name) ',lambda-list)
-         #+extensible-compound-types
-         (setf (symbol-type ',name) ',lambda-list)
-         #-extensible-compound-types
-         (setf (cl:documentation ',name 'extype) ,doc)
-         #+extensible-compound-types
-         (setf (cl:documentation ',name 'type) ,doc)
-         t))))
+    (with-gensyms (form)
+      `(progn
+         ,(unless (member (symbol-package name) *excluded-packages-for-cl-deftype*)
+            `(cl:deftype ,name (&whole ,form ,@lambda-list)
+               ,(ignore-all-form-from-lambda-list lambda-list)
+               (upgraded-cl-type ,form)))
+         (eval-when (:compile-toplevel :load-toplevel :execute)
+           (setf (type-expander ',name)
+                 ,(parse-macro name
+                               lambda-list
+                               (append decl body)
+                               env))
+           #-extensible-compound-types
+           (setf (symbol-extype ',name) ',lambda-list)
+           #+extensible-compound-types
+           (setf (symbol-type ',name) ',lambda-list)
+           #-extensible-compound-types
+           (setf (cl:documentation ',name 'extype) ,doc)
+           #+extensible-compound-types
+           (setf (cl:documentation ',name 'type) ,doc)
+           t)))))
 
 ;;; TODO: Could introduce a TMAKUNBOUND
 (defmacro undeftype (name)

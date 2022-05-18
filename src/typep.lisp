@@ -54,31 +54,37 @@ Note: Whenever possible, it is recommended to use EXTENSIBLE-COMPOUND-TYPES:DEFT
   methods correct.
 "
   (destructuring-bind (name &key (non-null t)) (ensure-list name-spec)
-    (let ((doc (nth-value 2 (parse-body body :documentation t))))
-      `(eval-when (:compile-toplevel :load-toplevel :execute)
-         (setf (compound-type-lambda-expression ',name)
-               '(lambda (,object-name ,@lambda-list) ,@body))
-         (setf (compound-type-lambda ',name)
-               (lambda (,object-name ,@lambda-list) ,@body))
-         (setf (type-expander ',name) 'compound-type-nonexpander)
-         #-extensible-compound-types
-         (setf (symbol-extype ',name) ',lambda-list)
-         #+extensible-compound-types
-         (setf (symbol-type ',name) ',lambda-list)
-         ,(unless non-null
-            `(defmethod %subtypep ((t1-name (eql ',name)) (t2-name (eql nil)) type1 type2 &optional env)
-               (declare (ignore t1-name t2-name type1 type2 env))
-               (values nil t)))
-         #-extensible-compound-types
-         (setf (cl:documentation ',name 'extype)
-               ,(format nil "~S is a BASIC COMPOUND TYPE~%~A" name doc))
-         #+extensible-compound-types
-         (setf (cl:documentation ',name 'type)
-               ,(format nil (if doc
-                                "~S is a PRIMITIVE COMPOUND TYPE~%~A"
-                                "~S is a PRIMITIVE COMPOUND TYPE")
-                        name doc))
-         t))))
+    (let ((doc (nth-value 2 (parse-body body :documentation t)))
+          (form (gensym "FORM")))
+      `(progn
+         ,(unless (member (symbol-package name) *excluded-packages-for-cl-deftype*)
+            `(cl:deftype ,name (&whole ,form ,@lambda-list)
+               ,(ignore-all-form-from-lambda-list lambda-list)
+               (upgraded-cl-type ,form)))
+         (eval-when (:compile-toplevel :load-toplevel :execute)
+           (setf (compound-type-lambda-expression ',name)
+                 '(lambda (,object-name ,@lambda-list) ,@body))
+           (setf (compound-type-lambda ',name)
+                 (lambda (,object-name ,@lambda-list) ,@body))
+           (setf (type-expander ',name) 'compound-type-nonexpander)
+           #-extensible-compound-types
+           (setf (symbol-extype ',name) ',lambda-list)
+           #+extensible-compound-types
+           (setf (symbol-type ',name) ',lambda-list)
+           ,(unless non-null
+              `(defmethod %subtypep ((t1-name (eql ',name)) (t2-name (eql nil)) type1 type2 &optional env)
+                 (declare (ignore t1-name t2-name type1 type2 env))
+                 (values nil t)))
+           #-extensible-compound-types
+           (setf (cl:documentation ',name 'extype)
+                 ,(format nil "~S is a BASIC COMPOUND TYPE~%~A" name doc))
+           #+extensible-compound-types
+           (setf (cl:documentation ',name 'type)
+                 ,(format nil (if doc
+                                  "~S is a PRIMITIVE COMPOUND TYPE~%~A"
+                                  "~S is a PRIMITIVE COMPOUND TYPE")
+                          name doc))
+           t)))))
 
 (defun undefine-compound-type (name)
   (setf (compound-type-lambda-expression name) nil)
