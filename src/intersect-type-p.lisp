@@ -133,7 +133,9 @@
                                                          (= dr1 (length dr2)))
                                                     (and (numberp dr2)
                                                          (= dr2 (length dr1)))
-                                                    (and (= (length dr1) (length dr2))
+                                                    (and (listp dr1)
+                                                         (listp dr2)
+                                                         (= (length dr1) (length dr2))
                                                          (loop :for d1 :in dr1
                                                                :for d2 :in dr2
                                                                :always (or (eq 'cl:* d1)
