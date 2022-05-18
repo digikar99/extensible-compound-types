@@ -226,53 +226,16 @@
                      :collect (def t1 t2))))))
 
 (define-mutually-exclusive-types
-  list array symbol character rational single-float double-float complex function)
-
-(define-mutually-exclusive-types
-  list simple-array symbol character rational single-float double-float complex function)
-
-(define-mutually-exclusive-types
   cons array symbol character rational single-float double-float complex function)
 
 (define-mutually-exclusive-types
   cons simple-array symbol character rational single-float double-float complex function)
 
 (define-mutually-exclusive-types
-  list array symbol character integer single-float double-float complex function)
-
-(define-mutually-exclusive-types
-  list simple-array symbol character integer single-float double-float complex function)
-
-(define-mutually-exclusive-types
   cons array symbol character integer single-float double-float complex function)
 
 (define-mutually-exclusive-types
   cons simple-array symbol character integer single-float double-float complex function)
-
-(define-mutually-exclusive-types
-  single-float double-float integer)
-(define-mutually-exclusive-types
-  single-float double-float rational)
-
-(define-mutually-exclusive-types
-  null array)
-
-(macrolet ((def (type1 type2)
-             `(define-mutually-exclusive-types
-                ,type1 ,type2)))
-
-  (def character integer)
-  (def integer list)
-  (def float list)
-  (def single-float list)
-  (def double-float list)
-  #-sbcl
-  (def short-float list)
-  #-sbcl
-  (def long-float list))
-
-(define-mutually-exclusive-types
-  null array)
 
 (macrolet ((def (type)
              `(define-mutually-exclusive-types
@@ -283,6 +246,7 @@
   (def simple-array)
   (def character)
   (def integer)
+  (def rational)
   (def float)
   (def single-float)
   (def double-float)

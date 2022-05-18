@@ -36,6 +36,7 @@
            #:%upgraded-cl-type
 
            #:*excluded-packages-for-cl-deftype*
+           #:define-mutually-exclusive-types
 
            #:unknown-type-specifier)
   (:import-from :trivial-types

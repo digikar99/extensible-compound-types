@@ -202,6 +202,7 @@
            (typep (car o) car-typespec))
        (or (eq 'cl:* cdr-typespec)
            (typep (cdr o) cdr-typespec))))
+(deftype list () `(or cons null))
 
 (define-compound-type function (o &optional arg-typespec value-typespec)
   (declare (ignore arg-typespec value-typespec))
