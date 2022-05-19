@@ -226,7 +226,7 @@
       (cond ((and (eq 'cl:* elt1) (eq 'cl:* elt2))
              (values t t))
             ((eq 'cl:* elt1)
-             ;; TYPE1 is specific; TYPE2 is not
+             ;; TYPE2 is specific; TYPE1 is not
              (values nil t))
             ((eq 'cl:* elt2)
              (values t t))
@@ -235,12 +235,28 @@
                (values type= knownp)))))))
 
 (defmethod %subtypep ((n1 (eql 'complex)) n2 t1 t2 &optional env)
-  (declare (ignore n1 n2 t1 t2 env))
-  (values nil t))
+  (declare (ignore n1 t1))
+  (if (and (or (symbolp t2)
+               (and (listp t2)
+                    (car t2)
+                    (null (cdr t2))))
+           (find-class n2 nil env))
+      (multiple-value-bind (subtypep knownp)
+          (cl:subtypep 'complex t2 env)
+        (values subtypep knownp))
+      (call-next-method)))
 
 (defmethod %subtypep (n1 (n2 (eql 'complex)) t1 t2 &optional env)
-  (declare (ignore n1 n2 t1 t2 env))
-  (values nil t))
+  (declare (ignore n2 t2))
+  (if (and (or (symbolp t1)
+               (and (listp t1)
+                    (car t1)
+                    (null (cdr t1))))
+           (find-class n1 nil env))
+      (multiple-value-bind (subtypep knownp)
+          (cl:subtypep t1 'complex env)
+        (values subtypep knownp))
+      (call-next-method)))
 
 #+sbcl
 (progn
