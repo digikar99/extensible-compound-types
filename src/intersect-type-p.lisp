@@ -116,6 +116,13 @@
         (values intersectp knownp)
         (call-next-method))))
 
+(defmethod %intersect-type-p ((n1 (eql 'member)) (n2 (eql 'member)) t1 t2 &optional env)
+  (declare (ignore n1 n2 env))
+  (assert (listp t1) (t1))
+  (assert (listp t2) (t2))
+  (values (not (null (intersection (rest t1) (rest t2) :test #'eql)))
+          t))
+
 (macrolet ((def (type)
              `(defmethod %intersect-type-p
                   ((t1 (eql ',type)) (t2 (eql ',type)) type1 type2 &optional env)
