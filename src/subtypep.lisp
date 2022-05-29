@@ -174,7 +174,8 @@
                     t)
                    ((atom dim1)
                     nil)
-                   ((= (length dim1) (length dim2))
+                   ((and (listp dim1) (listp dim2)
+                         (= (length dim1) (length dim2)))
                     (every #'dim-subtype-p dim1 dim2))
                    (t
                     nil))))
