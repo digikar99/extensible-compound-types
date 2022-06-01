@@ -46,18 +46,27 @@
   "EXTENSIBLE-COMPOUND-TYPES:TYPEP relies on these whenever TYPE supplied is
   non-atomic and non-class.
 
-NAME-SPEC can be either NAME or (NAME &KEY (NON-NULL T))
+NAME-SPEC can be either NAME or (NAME &KEY (NON-NULL T) (CL-TYPE T))
+
+  NON-NULL being non-NIL indicates that no matter what the arguments
+    in lambda-list the type is always not nil.
+  DEFINE-COMPOUND-TYPE also automatically creates a CL:DEFTYPE using
+    UPGRADED-CL-TYPE. However, if the NAME is a symbol in one of the packages
+    *EXCLUDED-PACKAGES-FOR-CL-DEFTYPE*, then a CL:DEFTYPE is not created. This
+    can be overriden by supplying the value of CL-TYPE.
 
 Note: Whenever possible, it is recommended to use EXTENSIBLE-COMPOUND-TYPES:DEFTYPE
   and only use EXTENSIBLE-COMPOUND-TYPES:DEFINE-COMPOUND-TYPE as a last resort.
   Use of DEFINE-COMPOUND-TYPE also entails getting the %SUBTYPEP and %INTERSECT-TYPE-P
   methods correct.
 "
-  (destructuring-bind (name &key (non-null t)) (ensure-list name-spec)
+  (destructuring-bind (name &key (non-null t) (cl-type t cl-type-p)) (ensure-list name-spec)
     (let ((doc (nth-value 2 (parse-body body :documentation t)))
           (form (gensym "FORM")))
       `(progn
-         ,(unless (member (symbol-package name) *excluded-packages-for-cl-deftype*)
+         ,(when (if cl-type-p
+                    cl-type
+                    (not (member (symbol-package name) *excluded-packages-for-cl-deftype*)))
             `(cl:deftype ,name (&whole ,form ,@lambda-list)
                ,(ignore-all-form-from-lambda-list lambda-list)
                (upgraded-cl-type ,form)))
@@ -190,7 +199,7 @@ Note: Whenever possible, it is recommended to use EXTENSIBLE-COMPOUND-TYPES:DEFT
   (handler-bind ((warning #'muffle-warning))
     (eval `(progn
              (cl:defstruct pair a b)
-             (define-compound-type pair (o &optional (type-a t) (type-b t))
+             (define-compound-type (pair :cl-type nil) (o &optional (type-a t) (type-b t))
                (and (cl:typep o 'pair)
                     (with-slots (a b) o
                       (and (cl:typep a type-a)
