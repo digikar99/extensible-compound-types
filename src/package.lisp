@@ -66,6 +66,7 @@
    #:the
 
    #:unknown-type-specifier)
+  (:shadow #:find-class)
   (:import-from :trivial-types
                 #:character-designator)
   (:import-from :cl-environments.cltl2
@@ -100,6 +101,14 @@
                     (mapcar (lambda (var)
                               (list var 'extype type))
                             vars)))))
+
+(defun find-class (name &optional errorp environment)
+  #-sbcl
+  (if errorp
+      (cl:find-class name t environment)
+      (ignore-errors (cl:find-class name nil environment)))
+  #+sbcl
+  (cl:find-class name errorp environment))
 
 (defun atomic-type-specifier-p (type)   ; TODO: Take ENV
   (and (atom type)
