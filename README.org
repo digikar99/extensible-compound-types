@@ -398,20 +398,19 @@ cl-form-types can also be used to provide better compile time checks for the ext
       (return-from cl-form-types-check t))
     (let ((form-type (cl-form-types:form-type form env)))
       (when (and (member :sbcl cl:*features*)
-                 (type= (upgraded-cl-type form-type)
+                 (type= (upgraded-cl-type form-type env)
                         form-type
                         env)
-                 (type= (upgraded-cl-type value-type)
+                 (type= (upgraded-cl-type value-type env)
                         value-type
                         env))
         (return-from cl-form-types-check t))
       (multiple-value-bind (intersectp knownp)
           (intersect-type-p form-type value-type env)
-        (cond ((and knownp intersectp)
-               t)
-              ((and knownp (not intersectp) (not (type= form-type t)))
-               (warn "Type declarations for~%  ~S~%conflict:~%  ~S~%does not intersect with~%  ~S"
-                     form form-type value-type)))))))
+        (when (and knownp (not intersectp) (not (type= form-type t)))
+          (warn "Type declarations for~%  ~S~%conflict:~%  ~S~%does not intersect with~%  ~S"
+                form form-type value-type)))
+      nil)))
 (pushnew 'cl-form-types-check *the-skip-predicates*)
 #+end_src
 
