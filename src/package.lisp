@@ -43,7 +43,7 @@
                 #:character-designator))
 
 (defpackage :extensible-compound-types.impl
-  (:use :cl :extensible-compound-types :alexandria)
+  (:use :cl-environments-cl :extensible-compound-types :alexandria)
   (:shadowing-import-from :extensible-compound-types
    #:deftype
    #:undeftype

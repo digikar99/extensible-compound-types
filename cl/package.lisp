@@ -1,5 +1,5 @@
 (defpackage :extensible-compound-types-cl
-  (:use :cl :extensible-compound-types)
+  (:use :cl-environments-cl :extensible-compound-types)
 
   #.`(:export ,@(let (symbols)
                   (do-external-symbols (s (find-package :cl))
@@ -96,7 +96,8 @@
 (cl:pushnew :extensible-compound-types cl:*features*)
 
 (defpackage :extensible-compound-types-cl.impl
-  (:use :cl)
+  (:use :cl-environments-cl)
   (:local-nicknames (:excl :extensible-compound-types-cl)
-                    (:ex :extensible-compound-types)
-                    (:a :alexandria)))
+                    (:ex   :extensible-compound-types)
+                    (:a    :alexandria)
+                    (:clel :cl-environments-cl)))

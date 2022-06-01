@@ -62,7 +62,7 @@
   (multiple-value-bind (rem-body decl) (a:parse-body body)
     (multiple-value-bind (extype-decl remaining-decls)
         (extract-declaration decl 'ex:extype)
-      `(cl:let ,bindings
+      `(clel:let ,bindings
          ,@(remove-if #'null
                       (list* (cl-type-declarations extype-decl env)
                              extype-decl
@@ -71,13 +71,13 @@
          ,@rem-body))))
 
 (defmacro excl:let* (bindings &body body &environment env)
-  `(cl:let* ,@(rest (macroexpand-1 `(cl:let ,bindings ,@body) env))))
+  `(clel:let* ,@(rest (macroexpand-1 `(excl:let ,bindings ,@body) env))))
 
 (defmacro excl:locally (&body body &environment env)
   (multiple-value-bind (rem-body decl) (a:parse-body body)
     (multiple-value-bind (extype-decl remaining-decls)
         (extract-declaration decl 'ex:extype)
-      `(cl:locally
+      `(clel:locally
            ,@(remove-if #'null
                         (list* (cl-type-declarations extype-decl env)
                                extype-decl
@@ -92,7 +92,7 @@
   (multiple-value-bind (rem-body decl) (a:parse-body body)
     (multiple-value-bind (extype-decl remaining-decls)
         (extract-declaration decl 'ex:extype)
-      `(cl:flet ,(mapcar #'process-function-definition definitions)
+      `(clel:flet ,(mapcar #'process-function-definition definitions)
          ,@(remove-if #'null
                       (list* (cl-type-declarations extype-decl env)
                              extype-decl
@@ -101,16 +101,16 @@
          ,@rem-body))))
 
 (defmacro excl:labels (definitions &body body &environment env)
-  `(cl:labels ,@(rest (macroexpand-1 `(excl:flet ,definitions ,@body) env))))
+  `(clel:labels ,@(rest (macroexpand-1 `(excl:flet ,definitions ,@body) env))))
 
 (defmacro excl:macrolet (definitions &body body &environment env)
-  `(cl:macrolet ,@(rest (macroexpand-1 `(excl:flet ,definitions ,@body) env))))
+  `(clel:macrolet ,@(rest (macroexpand-1 `(excl:flet ,definitions ,@body) env))))
 
 (defmacro excl:symbol-macrolet (macrobindings &body body &environment env)
   (multiple-value-bind (rem-body decl) (a:parse-body body)
     (multiple-value-bind (extype-decl remaining-decls)
         (extract-declaration decl 'ex:extype)
-      `(cl:symbol-macrolet ,macrobindings
+      `(clel:symbol-macrolet ,macrobindings
          ,@(remove-if #'null
                       (list* (cl-type-declarations extype-decl env)
                              extype-decl
