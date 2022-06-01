@@ -29,7 +29,7 @@ Libraries that provide extensible-compound-types compatible versions:
 - [[https://github.com/digikar99/trivial-coerce][trivial-coerce]]
 - [[https://github.com/digikar99/dense-arrays][dense-arrays]]
 - [[https://github.com/digikar99/numericals][numericals]]
-- [[https://github.com/alex-gutev/cl-form-types/][cl-form-types]] ([[https://github.com/digikar99/cl-form-types/][my branch]])
+- [[https://github.com/alex-gutev/cl-form-types/][cl-form-types]] ([[https://github.com/digikar99/cl-form-types/][my fork]])
 
 The end goal is indeed that extensible-compound-types-cl should be useable as a drop-in without special modifications, but the above projects have been explicitly tested.
 
@@ -69,6 +69,7 @@ If CL:*FEATURES* contains :EXTENSIBLE-COMPOUND-TYPES, then we also shadow CL:TYP
 - [[#additional-tools][Additional tools]]
 - [[#extensible-compound-types-api][Extensible Compound Types API]]
 - [[#parametric-types][Parametric Types]]
+- [[#using-cl-form-types-for-better-compile-time-checks][Using cl-form-types for better compile-time checks]]
 - [[#needs-more-work][Needs more work]]
 - [[#internal-discussion][Internal Discussion]]
   - [[#usage-api][Usage API]]
@@ -383,6 +384,36 @@ PAIR."
 ; B21:       CC10             INT3 16                         ; Invalid argument count trap
 ; B23:       CC10             INT3 16                         ; Invalid argument count trap
 #+END_SRC
+
+* Using cl-form-types for better compile-time checks
+
+cl-form-types can also be used to provide better compile time checks for the extended-types. TODO: Think about where to put this in, perhaps in cl-form-types?
+
+#+begin_src lisp
+(in-package :extensible-compound-types.impl)
+(defun cl-form-types-check (value-type form env)
+  (let ((optimize-decl (declaration-information 'optimize env)))
+    (when (> (second (assoc 'speed optimize-decl))
+             (second (assoc 'safety optimize-decl)))
+      (return-from cl-form-types-check t))
+    (let ((form-type (cl-form-types:form-type form env)))
+      (when (and (member :sbcl cl:*features*)
+                 (type= (upgraded-cl-type form-type)
+                        form-type
+                        env)
+                 (type= (upgraded-cl-type value-type)
+                        value-type
+                        env))
+        (return-from cl-form-types-check t))
+      (multiple-value-bind (intersectp knownp)
+          (intersect-type-p form-type value-type env)
+        (cond ((and knownp intersectp)
+               t)
+              ((and knownp (not intersectp) (not (type= form-type t)))
+               (warn "Type declarations for~%  ~S~%conflict:~%  ~S~%does not intersect with~%  ~S"
+                     form form-type value-type)))))))
+(pushnew 'cl-form-types-check *the-skip-predicates*)
+#+end_src
 
 * TODO Needs more work 
 
