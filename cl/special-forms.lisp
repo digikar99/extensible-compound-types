@@ -4,36 +4,50 @@
   "Returns two values:
 - extracted declaration
 - remaining declarations"
-  (loop :for decl :in declarations
-        :with required-decl-specs := ()
-        :for rem-decl
-          := (loop :for decl-spec :in (rest decl)
-                   :if (eq name (first decl-spec))
-                     :do (push decl-spec required-decl-specs)
-                   :else
-                     :collect decl-spec)
-        :if rem-decl
-          :collect (cons 'declare rem-decl)
-            :into remaining-decls
-        :finally (return (values (if (null required-decl-specs)
-                                     ()
-                                     `(declare ,@required-decl-specs))
-                                 (if (null remaining-decls)
-                                     ()
-                                     remaining-decls)))))
+  (let ((ignored-variables (loop :for decl :in declarations
+                                 :appending
+                                 (loop :for decl-spec :in (rest decl)
+                                       :if (eq 'cl:ignore (first decl-spec))
+                                         :appending (rest decl-spec)))))
+    (loop :for decl :in declarations
+          :with required-decl-specs := ()
+          :for rem-decl
+            := (loop :for decl-spec :in (rest decl)
+                     :if (eq name (first decl-spec))
+                       :do (push `(,name ,(second decl-spec)
+                                         ,@(set-difference (cddr decl-spec) ignored-variables))
+                                 required-decl-specs)
+                     :else
+                       :collect decl-spec)
+          :if rem-decl
+            :collect (cons 'declare rem-decl)
+              :into remaining-decls
+          :finally (return (values (if (null required-decl-specs)
+                                       ()
+                                       `(declare ,@required-decl-specs))
+                                   (if (null remaining-decls)
+                                       ()
+                                       remaining-decls))))))
 
 (5am:def-test extract-declaration ()
   (5am:is (equalp '(nil nil)
                   (multiple-value-list (extract-declaration '((declare)) 'excl:extype))))
   (5am:is (equalp '(nil ((declare (type integer x))))
                   (multiple-value-list
-                   (extract-declaration '((declare (type integer x))) 'excl:extype)))))
+                   (extract-declaration '((declare (type integer x))) 'excl:extype))))
+  (5am:is (equalp '((declare (excl:extype integer)) ((declare (ignore x))))
+                  (multiple-value-list
+                   (extract-declaration '((declare (excl:extype integer x) (ignore x))) 'excl:extype))))
+  (5am:is (equalp '((declare (excl:extype integer y)) ((declare (ignore x))))
+                  (multiple-value-list
+                   (extract-declaration '((declare (excl:extype integer x y) (ignore x)))
+                                        'excl:extype)))))
 
 (defun prepare-extype-checks (extype-decl)
   (a:mappend (lambda (extype-decl)
                (destructuring-bind (extype &rest vars) (rest extype-decl)
                  (loop :for var :in vars
-                       :collect `(ex:the ,extype ,var))))
+                       :collect `(ex:check-type ,var ,extype))))
              (rest extype-decl)))
 
 (defun cl-type-declarations (extype-decl &optional env)
