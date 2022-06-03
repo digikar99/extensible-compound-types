@@ -188,6 +188,8 @@
   ;; We need SUBTYPES of CHARACTER
   `(or (simple-array base-char (,size))
        (simple-array character (,size))))
+(deftype base-string (&optional (size 'cl:*))
+  `(array base-char (,size)))
 (deftype simple-base-string (&optional (size 'cl:*))
   `(simple-array base-char (,size)))
 
