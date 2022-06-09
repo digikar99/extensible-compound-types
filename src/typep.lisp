@@ -83,7 +83,7 @@ Note: Whenever possible, it is recommended to use EXTENSIBLE-COMPOUND-TYPES:DEFT
            ,(unless non-null
               `(defmethod %subtypep ((t1-name (eql ',name)) (t2-name (eql nil)) type1 type2 &optional env)
                  (declare (ignore t1-name t2-name type1 type2 env))
-                 (values nil t)))
+                 (values t t)))
            #-extensible-compound-types
            (setf (cl:documentation ',name 'extype)
                  ,(format nil "~S is a BASIC COMPOUND TYPE~%~A" name doc))
