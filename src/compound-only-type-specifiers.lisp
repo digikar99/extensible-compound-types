@@ -33,6 +33,11 @@
 (define-compound-type (satisfies :non-null nil) (o predicate-name)
   (funcall (fdefinition predicate-name) o))
 
+(defmethod %subtypep ((t1-name (eql 'satisfies)) (t2-name (eql nil)) type1 type2
+                      &optional env)
+  (declare (ignore t1-name t2-name type1 type2 env))
+  (values nil nil))
+
 (define-compound-type (values :non-null nil) (o &rest type-specifiers)
   (typep o (first type-specifiers)))
 
