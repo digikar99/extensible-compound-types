@@ -158,7 +158,7 @@
           t))
 
 (defmethod %subtypep ((t1-name (eql 'member)) t2-name type1 type2 &optional env)
-  (declare (ignore t1-name t2-name))
+  (declare (ignore t1-name))
   (assert (listp type1) (type1))
   (values (every (lambda (obj) (typep obj type2 env)) (rest type1))
           t))

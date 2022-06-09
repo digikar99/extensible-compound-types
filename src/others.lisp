@@ -106,7 +106,8 @@ The default unspecialized method corresponding to (T T) returns the type as it i
           ((member type-specifier '(t nil))
            type-specifier)
           (t
-           (%upgraded-cl-type (car type-specifier) type-specifier environment)))))
+           (let ((type-specifier (ensure-list type-specifier)))
+             (%upgraded-cl-type (car type-specifier) type-specifier environment))))))
 
 (defgeneric %upgraded-cl-type (type-name type &optional env))
 
@@ -173,9 +174,16 @@ after both TYPE1 and TYPE2 are expanded."))
          (values nil nil))))
 
 (defun intersection-null-p (env &rest type-specifiers)
-  ;; Intersection is NULL if the intersection of any two type specifiers is NULL.
+  ;; FIXME: Make a distinction between NIL and NULL
+  ;; Intersection is NULL if at least one type specifier is a subtype of NIL.
+  ;; Intersection is also NULL if the intersection of any two type specifiers is NULL.
   ;; However, even if the intersection of all 2-combinations of type specifiers is non-NULL,
   ;; the intersection can still be NULL because each combination might intersect at a different place.
+  (loop :for ts :in type-specifiers
+        :do (multiple-value-bind (subtypep knownp)
+                (subtypep ts nil env)
+              (when (and knownp subtypep)
+                (return-from intersection-null-p (values t t)))))
   (loop :for (type1 . rest) :on type-specifiers
         :with all-known-p := t
         :while all-known-p
@@ -195,7 +203,9 @@ after both TYPE1 and TYPE2 are expanded."))
                          ((and all-known-p
                                (null (cddr type-specifiers)))
                           (values nil t))
-                         (all-known-p
+                         ((or all-known-p t)
+                          ;; Either the intersection of three or more types is NULL
+                          ;; OR we don't even know all the intersections of two types
                           (values nil nil))))))
 
 (5am:def-test intersection-null-p ()
