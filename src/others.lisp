@@ -38,8 +38,9 @@ predicate in *THE-SKIP-PREDICATES* returns non-NIL."
                                      :context ',form)))))))
 
 (defmacro check-type (place type &optional type-string)
+  (declare (ignore type-string))
   (cl:check-type place symbol)
-  `(cl:assert (typep ,place ',type) () ,type-string))
+  `(the ,type ,place))
 
 ;;; Think what happens when one defines a subclass / substructure
 ;;; Nothing. We are not implementing parametric types. We are implementing compound types.
