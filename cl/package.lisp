@@ -93,8 +93,6 @@
    )
   )
 
-(cl:pushnew :extensible-compound-types cl:*features*)
-
 (defpackage :extensible-compound-types-cl.impl
   (:use :cl-environments-cl)
   (:local-nicknames (:excl :extensible-compound-types-cl)
