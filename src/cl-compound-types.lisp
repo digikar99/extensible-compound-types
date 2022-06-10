@@ -96,7 +96,8 @@
   (error "LONG-FLOAT not implemented on ~S" (lisp-implementation-type)))
 
 (deftype real (&optional (low 'cl:*) (high 'cl:*))
-  `(or ,(equivalent-num-type-form 'rational low high)
+  `(or ,(equivalent-num-type-form 'integer low high)
+       ,(equivalent-num-type-form 'rational low high)
        ,(equivalent-num-type-form 'float low high)))
 
 (deftype signed-byte (&optional (s 'cl:* s-supplied-p))
