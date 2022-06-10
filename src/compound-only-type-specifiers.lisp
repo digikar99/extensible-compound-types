@@ -11,7 +11,7 @@
     `(cl:and ,@(loop :for type-specifier-form :in type-specifier-forms
                      :collect `(typep ,o-form ,type-specifier-form)))))
 
-(define-compound-type (or :non-null nil) (o &rest type-specifiers)
+(define-compound-type or (o &rest type-specifiers)
   (declare (dynamic-extent type-specifiers))
   (loop :for type :in type-specifiers
           :thereis (typep o type)))
