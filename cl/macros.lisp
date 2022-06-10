@@ -84,11 +84,19 @@
 (defmacro excl:do* (varlist endlist &body body &environment env)
   `(clel:do* ,@(rest (macroexpand-1 `(excl:do ,varlist ,endlist ,@body) env))))
 
+(defmacro excl:do-symbols ((var &optional (package (quote cl:*package*))
+                                  (result-form nil result-form-p))
+                               &body body-decls &environment env)
+  `(clel:do-symbols ,(if result-form-p
+                         `(,var ,package ,result-form)
+                         `(,var ,package))
+     ,@(decl-and-type-check-body body-decls env)))
+
 (defmacro excl:do-all-symbols ((var &optional (result-form nil result-form-p))
                                &body body-decls &environment env)
   `(clel:do-all-symbols ,(if result-form-p
-                           `(,var ,result-form)
-                           `(,var))
+                             `(,var ,result-form)
+                             `(,var))
      ,@(decl-and-type-check-body body-decls env)))
 
 (defmacro excl:do-external-symbols ((var
