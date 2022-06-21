@@ -24,8 +24,8 @@
 (define-compound-type eql (o object)
   (cl:eql o object))
 
-(define-compound-type (member :non-null nil) (o &rest objects)
-  (member o objects :test #'cl:eql))
+(deftype member (&rest objects)
+  `(or ,@(loop :for o :in objects :collect `(eql ,o))))
 
 (define-compound-type not (o typespec)
   (not (typep o typespec)))

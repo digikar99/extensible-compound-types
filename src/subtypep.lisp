@@ -20,8 +20,8 @@
                   :else
                     :collect type)))))
 
-(defun simplify-collection-type (collection-name type-specifier &optional env)
-  (let ((ts (flatten-type-specifier-combination collection-name type-specifier env))
+(defun simplify-and-type (and-type-specifier &optional env)
+  (let ((ts (flatten-type-specifier-combination 'and and-type-specifier env))
         (non-redundant-types ()))
     (loop :for ts1 :in (sort (copy-list (rest ts)) #'subtypep)
           :do (unless (loop :for ts2 :in non-redundant-types
@@ -29,16 +29,18 @@
                 (push ts1 non-redundant-types)))
     (if (null (cdr non-redundant-types))
         (car non-redundant-types)
-        (cons collection-name non-redundant-types))))
-
-(defun simplify-and-type (and-type-specifier &optional env)
-  (simplify-collection-type 'and and-type-specifier env))
+        `(and ,@non-redundant-types))))
 
 (defun simplify-or-type (or-type-specifier &optional env)
-  (simplify-collection-type 'or or-type-specifier env))
-
-(defun simplify-member-type (member-type-specifier &optional env)
-  (simplify-collection-type 'member member-type-specifier env))
+  (let ((ts (flatten-type-specifier-combination 'or or-type-specifier env))
+        (non-redundant-types ()))
+    (loop :for ts1 :in (sort (copy-list (rest ts)) #'subtypep)
+          :do (unless (loop :for ts2 :in non-redundant-types
+                              :thereis (subtypep ts1 ts2 env))
+                (push ts1 non-redundant-types)))
+    (if (null (cdr non-redundant-types))
+        (car non-redundant-types)
+        `(or ,@non-redundant-types))))
 
 (defmethod %subtypep ((t1-name (eql 'and)) t2-name type1 type2 &optional env)
   (let ((type1 (simplify-and-type type1)))
@@ -148,19 +150,6 @@
   (declare (ignore t1-name t2-name))
   (assert (listp type1) (type1))
   (values (typep (second type1) type2 env)
-          t))
-
-(defmethod %subtypep ((t1-name (eql 'member)) (t2-name (eql 'member)) type1 type2 &optional env)
-  (declare (ignore t1-name t2-name env))
-  (assert (listp type1) (type1))
-  (assert (listp type2) (type2))
-  (values (subsetp (rest type1) (rest type2) :test #'eql)
-          t))
-
-(defmethod %subtypep ((t1-name (eql 'member)) t2-name type1 type2 &optional env)
-  (declare (ignore t1-name))
-  (assert (listp type1) (type1))
-  (values (every (lambda (obj) (typep obj type2 env)) (rest type1))
           t))
 
 (defmethod %subtypep ((t1 (eql 'array)) (t2 (eql 'array)) type1 type2 &optional env)

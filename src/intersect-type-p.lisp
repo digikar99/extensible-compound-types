@@ -128,25 +128,6 @@
   (values (typep (second t2) t1 env)
           t))
 
-(defmethod %intersect-type-p ((n1 (eql 'member)) (n2 (eql 'member)) t1 t2 &optional env)
-  (declare (ignore n1 n2 env))
-  (assert (listp t1) (t1))
-  (assert (listp t2) (t2))
-  (values (not (null (intersection (rest t1) (rest t2) :test #'eql)))
-          t))
-
-(defmethod %intersect-type-p ((n1 (eql 'member)) n2 t1 t2 &optional env)
-  (declare (ignore n1 n2))
-  (assert (listp t1) (t1))
-  (values (some (lambda (t1) (typep t1 t2 env)) (rest t1))
-          t))
-
-(defmethod %intersect-type-p (n1 (n2 (eql 'member)) t1 t2 &optional env)
-  (declare (ignore n1 n2))
-  (assert (listp t2) (t2))
-  (values (some (lambda (t2) (typep t1 t2 env)) (rest t2))
-          t))
-
 (macrolet ((def (type)
              `(defmethod %intersect-type-p
                   ((t1 (eql ',type)) (t2 (eql ',type)) type1 type2 &optional env)
