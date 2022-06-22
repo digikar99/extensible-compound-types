@@ -50,6 +50,27 @@
                        :collect `(ex:check-type ,var ,extype))))
              (rest extype-decl)))
 
+(defun extype-declarations (decl)
+  "Returns two values: EXTYPE-DECL and REMAINING-DECL"
+  (multiple-value-bind (extype-decl remaining-decls)
+      (extract-declaration decl 'ex:extype)
+    (multiple-value-bind (type-decl remaining-decls-2)
+        #+extensible-compound-types (extract-declaration decl 'ex:type)
+      #-extensible-compound-types nil
+      #+extensible-compound-types
+      (setq extype-decl (cond ((and extype-decl type-decl)
+                               (append extype-decl
+                                       (rest type-decl)))
+                              (type-decl
+                               type-decl)
+                              (extype-decl
+                               extype-decl)
+                              (nil
+                               nil))
+            remaining-decls (append remaining-decls
+                                    remaining-decls-2))
+      (values extype-decl remaining-decls))))
+
 (defun cl-type-declarations (extype-decl &optional env)
   (if (null extype-decl)
       ()
@@ -71,11 +92,11 @@
 ;;; There are three steps to this:
 ;;; 1. Process declarations to extract EX:EXTYPE declarations.
 ;;; 2. Convert EX:EXTYPE declarations to CL:TYPE declarations.
-;;; 3. Add initial EX:EXTYPE checks. This is done using EX:THE by PREPARE-EXTYPE-CHECKS.
+;;; 3. Add initial EX:EXTYPE checks. This is done using EX:CHECK-TYPE by PREPARE-EXTYPE-CHECKS.
 (defmacro excl:let (bindings &body body &environment env)
   (multiple-value-bind (rem-body decl) (a:parse-body body)
     (multiple-value-bind (extype-decl remaining-decls)
-        (extract-declaration decl 'ex:extype)
+        (extype-declarations decl)
       `(clel:let ,bindings
          ,@(remove-if #'null
                       (list* (cl-type-declarations extype-decl env)
@@ -90,7 +111,7 @@
 (defmacro excl:locally (&body body &environment env)
   (multiple-value-bind (rem-body decl) (a:parse-body body)
     (multiple-value-bind (extype-decl remaining-decls)
-        (extract-declaration decl 'ex:extype)
+        (extype-declarations decl)
       `(clel:locally
            ,@(remove-if #'null
                         (list* (cl-type-declarations extype-decl env)
@@ -105,7 +126,7 @@
 (defmacro excl:flet (definitions &body body &environment env)
   (multiple-value-bind (rem-body decl) (a:parse-body body)
     (multiple-value-bind (extype-decl remaining-decls)
-        (extract-declaration decl 'ex:extype)
+        (extype-declarations decl)
       `(clel:flet ,(mapcar #'process-function-definition definitions)
          ,@(remove-if #'null
                       (list* (cl-type-declarations extype-decl env)
@@ -123,7 +144,7 @@
 (defmacro excl:symbol-macrolet (macrobindings &body body &environment env)
   (multiple-value-bind (rem-body decl) (a:parse-body body)
     (multiple-value-bind (extype-decl remaining-decls)
-        (extract-declaration decl 'ex:extype)
+        (extype-declarations decl)
       `(clel:symbol-macrolet ,macrobindings
          ,@(remove-if #'null
                       (list* (cl-type-declarations extype-decl env)
