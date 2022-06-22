@@ -180,11 +180,26 @@ after both TYPE1 and TYPE2 are expanded."))
   ;; Intersection is also NULL if the intersection of any two type specifiers is NULL.
   ;; However, even if the intersection of all 2-combinations of type specifiers is non-NULL,
   ;; the intersection can still be NULL because each combination might intersect at a different place.
-  (loop :for ts :in type-specifiers
-        :do (multiple-value-bind (subtypep knownp)
-                (subtypep ts nil env)
-              (when (and knownp subtypep)
-                (return-from intersection-null-p (values t t)))))
+
+  ;; First check if some type is known to be NIL
+  (let ((all-known-p t))
+    (loop :for ts :in type-specifiers
+          :do (multiple-value-bind (subtypep knownp)
+                  (subtypep ts nil env)
+                (cond ((and knownp subtypep)
+                       (return-from intersection-null-p (values t t)))
+                      ((not knownp)
+                       (setq all-known-p nil)))))
+    (when all-known-p
+      ;; Since all types are known to be non-NIL, if some type is T, then
+      ;; intersection is non-NIL
+      (loop :for ts :in type-specifiers
+            :do (multiple-value-bind (tp knownp)
+                    (type= ts t env)
+                  (cond ((and knownp tp)
+                         (return-from intersection-null-p (values nil t)))
+                        ((not knownp)
+                         (setq all-known-p nil)))))))
   (loop :for (type1 . rest) :on type-specifiers
         :with all-known-p := t
         :while all-known-p
