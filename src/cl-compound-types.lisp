@@ -1,5 +1,8 @@
 (in-package :extensible-compound-types.impl)
 
+(deftype null () `(eql nil))
+;; FIXME: Remove references to NULL
+
 (define-compound-type base-char (o) (cl:typep o 'base-char))
 
 (macrolet ((def (type)
