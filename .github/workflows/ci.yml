@@ -8,7 +8,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        lisp: [sbcl]
+        lisp: [sbcl, ccl]
         os: [ubuntu-latest]
 
     steps:
