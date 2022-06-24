@@ -1,0 +1,47 @@
+name: CI
+
+on: [push, pull_request]
+
+jobs:
+  test:
+    name: ${{ matrix.lisp }} on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        lisp: [sbcl]
+        os: [ubuntu-latest]
+
+    steps:
+
+    - uses: actions/checkout@v2
+
+    - name: Update $PATH
+      run: |
+        echo $PATH
+        echo "PATH=$HOME/bin:$PATH" >> $GITHUB_ENV
+    - name: Check $PATH
+      run: echo $PATH
+
+    - name: Download implementation
+      env:
+        LISP: ${{ matrix.lisp }}
+      run: |
+          pwd
+          ls -l
+          bash <(curl -s https://raw.githubusercontent.com/digikar99/lisp-travis-lite/master/run.sh)
+    - name: Move system to quicklisp/local-projects
+      run: |
+        mkdir -p ~/quicklisp/local-projects/abstract-arrays
+        mv * ~/quicklisp/local-projects/abstract-arrays
+
+    - name: Load using quicklisp
+      run: cl --eval '(ql:quickload "extensible-compound-types-cl")'
+
+    - name: Compile extensible-compound-types
+      run: cl --eval '(asdf:compile-system "extensible-compound-types" :force t)'
+
+    - name: Compile extensible-compound-types-cl
+      run: cl --eval '(asdf:compile-system "extensible-compound-types-cl" :force t)'
+
+    - name: Load and Test System
+      run: cl --eval '(asdf:load-system "extensible-compound-types-cl")' --eval '(asdf:test-system "extensible-compound-types")'
