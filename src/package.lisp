@@ -147,10 +147,11 @@ a symbol in package excluded in this list.")
                     :if (member form (cons 'required lambda-list-keywords))
                       :do (setq state form)
                     :else
-                      :appending (typecase form
+                      :appending (etypecase form
                                    (symbol (list form))
-                                   (list (case (length form)
+                                   (list (ecase (length form)
                                            (1 (list (first form)))
+                                           (2 (list (first form)))
                                            (3 (list (first form)
                                                     (third form)))))))))
     `(declare (ignore ,@vars))))
@@ -207,7 +208,9 @@ also adds a CL:DEFTYPE with the expansion being determined by UPGRADED-CL-TYPE"
          (classp (and atomp (find-class type-name nil env)))
          (expander (ignore-some-conditions (unknown-type-specifier)
                      (type-expander type-name)))
-         (expansion (cond (expander
+         (expansion (cond ((eq expander 'compound-type-nonexpander)
+                           (return-from typexpand-1 (values type nil)))
+                          (expander
                            (funcall expander
                                     (if atomp (list type) type)
                                     env))
