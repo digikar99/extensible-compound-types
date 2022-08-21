@@ -167,33 +167,48 @@ Note: Whenever possible, it is recommended to use EXTENSIBLE-COMPOUND-TYPES:DEFT
         (form env
          :unwind-on-signal t
          :optimization-note-condition optimize)
-      (unless (and (constantp type-form)
-                   (constantp env-form))
-        (signal 'compiler-macro-notes:optimization-failure-note
-                :datum "Cannot determine TYPE and ENV from their compile time forms:~%  ~S~%  ~S"
-                :args (list type-form env-form)))
-      (let* ((type   (typexpand (eval type-form) (eval env-form)))
-             (atomp  (atom type))
-             (classp (and atomp (find-class type nil (eval env-form)))))
-        (cond ((not optimize)
-               form)
-              ((eq t type)
-               t)
-              ((eq nil type)
-               nil)
-              (classp
-               `(cl:typep ,object-form ',type))
-              (t
-               (let* ((cm   (compound-type-compiler-macro type))
-                      (compound-type-lambda-form `(,(compound-type-lambda-expression type)
-                                                   ,object-form
-                                                   ,@(loop :for arg :in (if (atom type)
-                                                                            nil
-                                                                            (rest type))
-                                                           :collect `(quote ,arg)))))
-                 (if cm
-                     (funcall cm compound-type-lambda-form env)
-                     compound-type-lambda-form))))))))
+      (flet ((type-form-failure ()
+               (signal 'compiler-macro-notes:optimization-failure-note
+                       :datum "Cannot determine TYPE and ENV from their compile time forms:~%  ~S~%  ~S"
+                       :args (list type-form env-form))))
+        (let* ((type   (if (find-package :cl-form-types)
+                           (let ((type-form-type (uiop:symbol-call '#:cl-form-types
+                                                                   '#:nth-form-type
+                                                                   type-form env 0 t t))
+                                 (env-form-value (if (constantp env-form)
+                                                     (eval env-form)
+                                                     (type-form-failure))))
+                             (if (and (not (type= t type-form-type))
+                                      (null env-form-value))
+                                 (optima:ematch (typexpand type-form-type env)
+                                   ((list 'eql type) type)
+                                   ((list 'member type) type))
+                                 (type-form-failure)))
+                           (if (and (constantp type-form)
+                                    (constantp env-form))
+                               (typexpand (eval type-form) (eval env-form))
+                               (type-form-failure))))
+               (atomp  (atom type))
+               (classp (and atomp (find-class type nil (eval env-form)))))
+          (cond ((not optimize)
+                 form)
+                ((eq t type)
+                 t)
+                ((eq nil type)
+                 nil)
+                (classp
+                 `(cl:typep ,object-form ',type))
+                (t
+                 (let* ((cm   (compound-type-compiler-macro type))
+                        (compound-type-lambda-form `(,(compound-type-lambda-expression type)
+                                                     ,object-form
+                                                     ,@(loop :for arg :in (if (atom type)
+                                                                              nil
+                                                                              (rest type))
+                                                             :collect `(quote ,arg)))))
+                   (if cm
+                       (funcall cm compound-type-lambda-form env)
+                       compound-type-lambda-form)))))))))
 
 (5am:def-test typep ()
   (handler-bind ((warning #'muffle-warning))
