@@ -103,8 +103,8 @@
        ,(equivalent-num-type-form 'rational low high)
        ,(equivalent-num-type-form 'float low high)))
 
-(deftype signed-byte (&optional (s 'cl:* s-supplied-p))
-  (if (not s-supplied-p)
+(deftype signed-byte (&optional (s 'cl:*))
+  (if (eq s 'cl:*)
       'integer
       (progn
         (cl:check-type s non-negative-fixnum)
@@ -112,8 +112,8 @@
               (high (1- (expt 2 (1- s)))))
           `(integer ,low ,high)))))
 
-(deftype unsigned-byte (&optional (s 'cl:* s-supplied-p))
-  (if (not s-supplied-p)
+(deftype unsigned-byte (&optional (s 'cl:*))
+  (if (eq s 'cl:*)
       `(integer 0)
       (progn
         (cl:check-type s non-negative-fixnum)
