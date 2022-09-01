@@ -4,6 +4,12 @@
                               type1 type2 &optional env)
   (let ((t1 (simplify-or-type type1))
         (t2 (simplify-or-type type2)))
+    (optima:match t1
+      ((list* 'or _))
+      (_ (setq t1 (list 'or t1))))
+    (optima:match t2
+      ((list* 'or _))
+      (_ (setq t2 (list 'or t2))))
     (loop :with all-known-p := t
           :for t1 :in (rest t1)
           :while all-known-p
