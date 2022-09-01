@@ -27,15 +27,68 @@ predicate in *THE-SKIP-PREDICATES* returns non-NIL."
                  :thereis (funcall predicate value-type form env))
          `(cl:the ,(upgraded-cl-type value-type env) ,form))
         (t
-         (with-gensyms (form-value)
-           `(let ((,form-value ,form))
-              (declare (cl:type ,(upgraded-cl-type value-type env) ,form-value)
-                       (extype ,value-type ,form-value))
-              (if (typep ,form-value ',value-type) ; FIXME: Handle VALUES type
-                  ,form-value
-                  (error 'type-error :datum ,form-value
-                                     :expected-type ',value-type
-                                     :context ',form)))))))
+         (optima:match value-type
+           ((list* 'cl:values value-types)
+            ;; TODO: Optimize this. Even a multiple-value-call with lambda would involve
+            ;; making a list and then calling values-list on it in the general case
+            (let* ((optional-position (position '&optional value-types))
+                   (rest-position     (position '&rest value-types))
+                   (no-more-values    (and optional-position
+                                           (= (1+ optional-position)
+                                              (length value-types)))))
+              (setq value-types (remove '&optional value-types))
+              (setq value-types (remove '&allow-other-keys value-types))
+              (with-gensyms (i type form-value
+                               original-num-values original-form-value-list
+                               form-value-list)
+                `(let* ((,original-form-value-list (multiple-value-list ,form))
+                        (,original-num-values (length ,original-form-value-list))
+                        (,form-value-list (nconc ,original-form-value-list
+                                                 (make-list ,(or optional-position
+                                                                 rest-position
+                                                                 (length value-types))
+                                                            :initial-element nil))))
+                   (loop :for ,form-value :in ,form-value-list
+                         :for ,i :from 0
+                         :for ,type :in ',value-types
+                         :do (when (eq ,type '&rest)
+                               (setq ,type ',(lastcar value-types)))
+                             (unless (typep ,form-value ,type)
+                               (error 'simple-type-error
+                                      :format-control
+                                      "~A value of form (0-indexed) ~%  ~S~%is~%  ~S~%not of expected type~%  ~S"
+                                      :format-arguments (list (ecase ,i
+                                                                (1 "1st")
+                                                                (2 "2nd")
+                                                                (3 "3rd")
+                                                                (t (format nil "~Ath" ,i)))
+                                                              ',form
+                                                              ,form-value
+                                                              ,type))))
+                   ,(when no-more-values
+                      `(unless (< ,original-num-values ,optional-position)
+                         (error 'simple-type-error
+                                :format-control
+                                "Expected at most ~D value(s) but~%  ~S~%returned ~D values: ~S"
+                                :format-arguments (list ,optional-position
+                                                        ',form
+                                                        ,original-num-values
+                                                        (subseq ,original-form-value-list
+                                                                0 ,original-num-values)))))
+                   (values-list (subseq ,form-value-list 0 ,original-num-values))))))
+           (_
+            (with-gensyms (form-value)
+              `(let ((,form-value ,form))
+                 (declare (cl:type ,(upgraded-cl-type value-type env) ,form-value)
+                          (extype ,value-type ,form-value))
+                 (if (typep ,form-value ',value-type)
+                     ,form-value
+                     (error 'simple-type-error
+                            :format-control
+                            "Value of form~%  ~S~%is~%  ~S~%not of expected type~%  ~S"
+                            :format-arguments (list ',form
+                                                    ,form-value
+                                                    ',value-type))))))))))
 
 (defmacro check-type (place type &optional type-string)
   (declare (ignore type-string))
