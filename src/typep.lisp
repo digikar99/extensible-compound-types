@@ -167,10 +167,15 @@ Note: Whenever possible, it is recommended to use EXTENSIBLE-COMPOUND-TYPES:DEFT
         (form env
          :unwind-on-signal t
          :optimization-note-condition optimize)
-      (flet ((type-form-failure ()
-               (signal 'compiler-macro-notes:optimization-failure-note
-                       :datum "Cannot determine TYPE and ENV from their compile time forms:~%  ~S~%  ~S"
-                       :args (list type-form env-form))))
+      (labels ((type-form-failure ()
+                 (signal 'compiler-macro-notes:optimization-failure-note
+                         :datum "Cannot determine TYPE and ENV from their compile time forms:~%  ~S~%  ~S"
+                         :args (list type-form env-form)))
+               (may-be-constant-type-value ()
+                 (if (and (constantp type-form)
+                          (constantp env-form))
+                     (eval type-form)
+                     (type-form-failure))))
         (let* ((type   (if (find-package :cl-form-types)
                            (let ((type-form-type (uiop:symbol-call '#:cl-form-types
                                                                    '#:nth-form-type
@@ -180,14 +185,13 @@ Note: Whenever possible, it is recommended to use EXTENSIBLE-COMPOUND-TYPES:DEFT
                                                      (type-form-failure))))
                              (if (and (not (type= t type-form-type))
                                       (null env-form-value))
-                                 (optima:ematch (typexpand type-form-type env)
-                                   ((list 'eql type) type)
-                                   ((list 'member type) type))
+                                 (typexpand (optima:ematch (typexpand type-form-type env)
+                                              ((list 'eql type) type)
+                                              ((list 'member type) type)
+                                              (_ (may-be-constant-type-value)))
+                                            env-form-value)
                                  (type-form-failure)))
-                           (if (and (constantp type-form)
-                                    (constantp env-form))
-                               (typexpand (eval type-form) (eval env-form))
-                               (type-form-failure))))
+                           (may-be-constant-type-value)))
                (atomp  (atom type))
                (classp (and atomp (find-class type nil (eval env-form)))))
           (cond ((not optimize)
