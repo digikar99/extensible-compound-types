@@ -5,7 +5,7 @@
     (multiple-value-bind (extype-decl remaining-decls)
         (extype-declarations decl)
       `(clel:lambda ,args
-         ,(or doc-string "")
+         ,@(if doc-string (list doc-string) nil)
          ,@(remove-if #'null
                       (list* (cl-type-declarations extype-decl env)
                              extype-decl
