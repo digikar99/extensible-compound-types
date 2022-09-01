@@ -156,7 +156,9 @@ Note: Whenever possible, it is recommended to use EXTENSIBLE-COMPOUND-TYPES:DEFT
           (t
            (apply (compound-type-lambda type)
                   object
-                  (rest type))))))
+                  (if (listp type)
+                      (rest type)
+                      nil))))))
 
 (define-compiler-macro typep (&whole form object-form type-form &optional env-form &environment env)
   (let ((optimize (and (> (second (assoc 'speed (declaration-information 'optimize env)))
