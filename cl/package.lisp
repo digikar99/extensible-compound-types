@@ -18,6 +18,8 @@
             (push s symbols))
           symbols))
 
+  (:export #:compile)
+
   ;; Special Forms
   (:shadow
    ;; Commented out ones do not need a rewrite, since they do not incorporate DECLARATIONS
@@ -91,6 +93,8 @@
    ;;  #:with-package-iterator
     #:with-slots
    )
+  (:shadow
+   #:compile)
   )
 
 (defpackage :extensible-compound-types-cl.impl
