@@ -214,7 +214,10 @@ also adds a CL:DEFTYPE with the expansion being determined by UPGRADED-CL-TYPE"
 (defun typexpand-1 (type &optional env)
   "Returns two values: EXPANSION and EXPANDEDP"
   (let* ((atomp (atom type))
-         (type-name (if (atom type) type (car type)))
+         (type-name (if (atom type)
+                        #-ecl type
+                        #+ecl (if (eq type 'c::gen-bool) 'boolean type)
+                        (car type)))
          (classp (and atomp (find-class type-name nil env)))
          (expander (ignore-some-conditions (unknown-type-specifier)
                      (type-expander type-name)))

@@ -63,6 +63,8 @@ Note: Whenever possible, it is recommended to use EXTENSIBLE-COMPOUND-TYPES:DEFT
   (destructuring-bind (name &key (non-null t) (cl-type t cl-type-p)) (ensure-list name-spec)
     (let ((doc (nth-value 2 (parse-body body :documentation t)))
           (form (gensym "FORM")))
+      (assert (not (member name '(extype type cl:type))) ()
+              "Illegal to define a type named ~S" name)
       `(progn
          ,(when (if cl-type-p
                     cl-type

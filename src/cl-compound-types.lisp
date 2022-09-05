@@ -80,22 +80,25 @@
                      (t (cl:coerce high num-type))))))
 
 (deftype float (&optional (low 'cl:*) (high 'cl:*))
-  #+sbcl
+  #+(or sbcl ccl ecl)
   `(or ,(equivalent-num-type-form 'single-float low high)
-       ,(equivalent-num-type-form 'double-float low high))
-  #-sbcl
+       ,(equivalent-num-type-form 'double-float low high)
+       #-ecl ,(equivalent-num-type-form 'long-float low high))
+  #-(or sbcl ccl ecl)
   (error "FLOAT not implemented"))
 
 (deftype short-float (&optional (low 'cl:*) (high 'cl:*))
-  #+sbcl
+  #+(or sbcl ccl ecl)
   (equivalent-num-type-form 'single-float low high)
-  #-sbcl
+  #-(or sbcl ccl ecl)
   (error "SHORT-FLOAT not implemented on ~S" (lisp-implementation-type)))
 
 (deftype long-float (&optional (low 'cl:*) (high 'cl:*))
-  #+sbcl
+  #+(or sbcl ccl)
   (equivalent-num-type-form 'double-float low high)
-  #-sbcl
+  #+ecl
+  (equivalent-num-type-form 'long-float low high)
+  #-(or sbcl ccl ecl)
   (error "LONG-FLOAT not implemented on ~S" (lisp-implementation-type)))
 
 (deftype real (&optional (low 'cl:*) (high 'cl:*))
@@ -225,6 +228,7 @@
 (deftype extended-char () `(and character (not base-char)))
 
 (deftype boolean () `(member t nil))
+;; #+ecl (eval '(deftype c::gen-bool () `boolean))
 
 #+sbcl
 (define-compound-type sb-kernel:extended-sequence (o)
