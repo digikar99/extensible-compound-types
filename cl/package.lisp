@@ -18,7 +18,8 @@
             (push s symbols))
           symbols))
 
-  (:export #:compile)
+  (:export #:compile
+           #:augment-environment)
 
   ;; Special Forms
   (:shadow
@@ -94,7 +95,8 @@
     #:with-slots
    )
   (:shadow
-   #:compile)
+   #:compile
+   #:augment-environment)
   )
 
 (defpackage :extensible-compound-types-cl.impl
