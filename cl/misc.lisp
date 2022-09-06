@@ -7,11 +7,20 @@
   `(cl:function ,arg-typespec ,value-typespec))
 
 (cl:defun excl:compile (name &optional definition)
+  "Like CL:COMPILE but more robust for handling edge cases"
   (if definition
       (cl:compile name (optima:match definition
+                         ((list* 'cl:function definition)
+                          definition)
                          ((list* 'cl:lambda _)
                           definition)
+                         #+sbcl
+                         ((list* 'sb-int:named-lambda _)
+                          definition)
                          (_
+                          #+sbcl
+                          (cl-environments:macroexpand-1 definition)
+                          #-sbcl
                           (eval
                            (cl-environments.cltl2::enclose-form
                             (cl-environments:macroexpand-1 definition))))))
