@@ -216,7 +216,7 @@ Combined with [[https://github.com/digikar99/polymorphic-functions/][polymorphic
 
 #+BEGIN_SRC lisp
 (push :extensible-compound-types cl:*features*)
-(ql:quickload "polymorphic-functions+extensible-compound-types")
+(ql:quickload "polymorphic-functions")
 
 (cl:defpackage parametric-types-demo
   (:use :extensible-compound-types-cl :polymorphic-functions))
@@ -225,7 +225,7 @@ Combined with [[https://github.com/digikar99/polymorphic-functions/][polymorphic
 
 (defstruct pair a b)
 
-(define-compound-type pair (o &optional (type-a 'cl:*) (type-b 'cl:*))
+(define-compound-type (pair :cl-type nil) (o &optional (type-a 'cl:*) (type-b 'cl:*))
   "A user-defined compound-type that allows the specification of the
 types of the values stored in slots A and B of the structure-class
 PAIR."
@@ -240,7 +240,7 @@ PAIR."
 
 (defmethod %upgraded-cl-type ((name (eql 'pair)) type &optional env)
   (declare (ignore type env))
-  name)
+  'pair)
 
 (defmethod %subtypep ((t1 (eql 'pair)) (t2 (eql 'pair)) type1 type2 &optional env)
   (declare (ignore t1 t2 env))
@@ -273,7 +273,10 @@ PAIR."
 (defmethod parametric-type-compile-time-lambda-body
     ((type-car (eql 'pair)) type-cdr parameter)
   `(cl:lambda (elt-type)
-     (destructuring-bind (&optional (type-a t) (type-b t)) (rest elt-type)
+     (destructuring-bind (&optional (type-a t) (type-b t))
+         (if (listp elt-type)
+             (rest elt-type)
+             nil)
        (declare (ignorable type-a type-b))
        (when (eq cl:* type-a) (setq type-a t))
        (when (eq cl:* type-b) (setq type-b t))
@@ -284,19 +287,35 @@ PAIR."
               (t
                (error "Unknown case"))))))
 
-(let ((*parametric-type-symbol-predicates*
-        (list (lambda (s)
-                (let* ((name (symbol-name s))
-                       (len  (length name)))
-                  (and (char= #\< (elt name 0))
-                       (char= #\> (elt name (1- len)))))))))
-  (eval `(progn
-           (define-polymorphic-function slot-a (object) :overwrite t)
-           (defpolymorph slot-a ((o (pair <a> <b>))) <a>
-             (pair-a o))
-           (define-polymorphic-function slot-b (object) :overwrite t)
-           (defpolymorph slot-b ((o (pair <a> <b>))) <b>
-             (pair-b o)))))
+(defun parametric-type-parameter-p (s)
+  (let* ((name (symbol-name s))
+         (len  (length name)))
+    (and (char= #\< (elt name 0))
+         (char= #\> (elt name (1- len))))))
+(pushnew 'parametric-type-parameter-p *parametric-type-symbol-predicates*)
+
+(defun skip-if-parametric-type-parameter (value-type form env)
+  (declare (ignore value-type env))
+  (if (and *compiler-macro-expanding-p*
+           (symbolp form)
+           (parametric-type-parameter-p form))
+      cl:t
+      cl:nil))
+(pushnew 'skip-if-parametric-type-parameter *the-skip-predicates*)
+
+
+;;; If you are not running this interactively in SLIME, ALIVE, or SLIMV or the like,
+;;; make sure that the above code is compiled before the below code begins to compile.
+;;; Perhaps, surround the part below IN-PACKAGE in an
+;;;   (EVAL-WHEN (:COMPILE-TOPLEVEL :LOAD-TOPLEVEL :EXECUTE)
+;;;     ...)
+(define-polymorphic-function slot-a (object) :overwrite t)
+(defpolymorph slot-a ((o (pair <a> <b>))) <a>
+  (pair-a o))
+(define-polymorphic-function slot-b (object) :overwrite t)
+(defpolymorph slot-b ((o (pair <a> <b>))) <b>
+  (pair-b o))
+
 
 ;;; Exercise for the reader: Write a compiler-macro that emits appropriate compiler-notes
 (disassemble (lambda (o)
@@ -383,6 +402,89 @@ PAIR."
 ; B20:       00               BYTE #X00                       ; RAX(d)
 ; B21:       CC10             INT3 16                         ; Invalid argument count trap
 ; B23:       CC10             INT3 16                         ; Invalid argument count trap
+
+(define-polymorphic-function add-pair (a b) :overwrite t)
+(defpolymorph add-pair ((a (pair <a> <b>)) (b (pair <a> <b>))) (pair <a> <b>)
+  (make-pair :a
+             (cl:+ (slot-a a)
+                   (slot-a b))
+             :b
+             (cl:+ (slot-b a)
+                   (slot-b b))))
+
+(disassemble (lambda (x y)
+               (declare (optimize speed)
+                        (type (pair single-float double-float) x y))
+               (add-pair x y)))
+; Check for the presence of ADDSS and ADDSD instructions below
+; disassembly for (COMMON-LISP:LAMBDA (X Y))
+; Size: 219 bytes. Origin: #x538F5BBF                         ; (COMMON-LISP:LAMBDA
+                                                                    (X Y))
+; BBF:       488B4205         MOV RAX, [RDX+5]
+; BC3:       3C19             CMP AL, 25
+; BC5:       0F85B5000000     JNE L7
+; BCB:       66480F6EC8       MOVQ XMM1, RAX
+; BD0:       0FC6C9FD         SHUFPS XMM1, XMM1, #4r3331
+; BD4:       488B4705         MOV RAX, [RDI+5]
+; BD8:       3C19             CMP AL, 25
+; BDA:       0F859D000000     JNE L6
+; BE0:       66480F6ED8       MOVQ XMM3, RAX
+; BE5:       0FC6DBFD         SHUFPS XMM3, XMM3, #4r3331
+; BE9:       F30F58D9         ADDSS XMM3, XMM1
+; BED:       488B4A0D         MOV RCX, [RDX+13]
+; BF1:       488D41F1         LEA RAX, [RCX-15]
+; BF5:       A80F             TEST AL, 15
+; BF7:       7503             JNE L0
+; BF9:       80381D           CMP BYTE PTR [RAX], 29
+; BFC: L0:   757C             JNE L5
+; BFE:       F20F1049F9       MOVSD XMM1, [RCX-7]
+; C03:       488B4F0D         MOV RCX, [RDI+13]
+; C07:       488D41F1         LEA RAX, [RCX-15]
+; C0B:       A80F             TEST AL, 15
+; C0D:       7503             JNE L1
+; C0F:       80381D           CMP BYTE PTR [RAX], 29
+; C12: L1:   7563             JNE L4
+; C14:       F20F1051F9       MOVSD XMM2, [RCX-7]
+; C19:       F20F58D1         ADDSD XMM2, XMM1
+; C1D:       BADFEE2250       MOV EDX, #x5022EEDF             ; ':A
+; C22:       660F7EDF         MOVD EDI, XMM3
+; C26:       48C1E720         SHL RDI, 32
+; C2A:       4080CF19         OR DIL, 25
+; C2E:       BE3FEC2250       MOV ESI, #x5022EC3F             ; ':B
+; C33:       4D896D28         MOV [R13+40], R13               ; thread.pseudo-atomic-bits
+; C37:       498B4570         MOV RAX, [R13+112]              ; thread.mixed-tlab
+; C3B:       4883C010         ADD RAX, 16
+; C3F:       493B4578         CMP RAX, [R13+120]
+; C43:       7749             JNBE L9
+; C45:       49894570         MOV [R13+112], RAX              ; thread.mixed-tlab
+; C49:       4883C0FF         ADD RAX, -1
+; C4D: L2:   66C740F11D01     MOV WORD PTR [RAX-15], 285
+; C53:       4D316D28         XOR [R13+40], R13               ; thread.pseudo-atomic-bits
+; C57:       7402             JEQ L3
+; C59:       CC09             INT3 9                          ; pending interrupt trap
+; C5B: L3:   F20F1150F9       MOVSD [RAX-7], XMM2
+; C60:       488945F0         MOV [RBP-16], RAX
+; C64:       488B5DF0         MOV RBX, [RBP-16]
+; C68:       B908000000       MOV ECX, 8
+; C6D:       FF7508           PUSH QWORD PTR [RBP+8]
+; C70:       B8222F4B50       MOV EAX, #x504B2F22             ; #<FDEFN MAKE-PAIR>
+; C75:       FFE0             JMP RAX
+; C77: L4:   CC50             INT3 80                         ; OBJECT-NOT-DOUBLE-FLOAT-ERROR
+; C79:       04               BYTE #X04                       ; RCX(d)
+; C7A: L5:   CC50             INT3 80                         ; OBJECT-NOT-DOUBLE-FLOAT-ERROR
+; C7C:       04               BYTE #X04                       ; RCX(d)
+; C7D: L6:   CC4F             INT3 79                         ; OBJECT-NOT-SINGLE-FLOAT-ERROR
+; C7F:       00               BYTE #X00                       ; RAX(d)
+; C80: L7:   CC4F             INT3 79                         ; OBJECT-NOT-SINGLE-FLOAT-ERROR
+; C82:       00               BYTE #X00                       ; RAX(d)
+; C83: L8:   FF24256800A052   JMP QWORD PTR [#x52A00068]      ; SB-VM::ALLOC-TRAMP
+; C8A:       CC10             INT3 16                         ; Invalid argument count trap
+; C8C:       CC10             INT3 16                         ; Invalid argument count trap
+; C8E: L9:   6A10             PUSH 16
+; C90:       E8EEFFFFFF       CALL L8
+; C95:       58               POP RAX
+; C96:       0C0F             OR AL, 15
+; C98:       EBB3             JMP L2
 #+END_SRC
 
 * Using cl-form-types for better compile-time checks
