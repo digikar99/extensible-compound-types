@@ -46,6 +46,9 @@
                                          :macro macro
                                          :declare upgraded-cl-type-declarations)))
 
-(do-external-symbols (s (find-package :extensible-compound-types-cl))
-  (setf (documentation s 'cl:function)
-        (documentation (find-symbol (symbol-name s) :cl) 'cl:function)))
+(let ((exct-cl-package (find-package :extensible-compound-types-cl)))
+  (do-external-symbols (s exct-cl-package)
+    (when (eq exct-cl-package
+              (symbol-package s))
+      (setf (documentation s 'cl:function)
+            (documentation (find-symbol (symbol-name s) :cl) 'cl:function)))))
