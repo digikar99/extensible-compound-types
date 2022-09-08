@@ -75,7 +75,25 @@
   (if (null extype-decl)
       ()
       `(declare ,@(loop :for (extype-decl ex:extype . vars) :in (rest extype-decl)
-                        :collect `(cl:type ,(ex:upgraded-cl-type ex:extype env) ,@vars)))))
+                        :collect (let ((vars
+                                         (if (and (member :sbcl cl:*features*)
+                                                  (member "polymorphic-functions"
+                                                          (asdf:already-loaded-systems)
+                                                          :test #'string=)
+                                                  (symbol-value (find-symbol
+                                                                 "*COMPILER-MACRO-EXPANDING-P*"
+                                                                 :polymorphic-functions)))
+                                             ;; Try to avoid checks for type parameters,
+                                             ;; since we must have already checked for them.
+                                             (loop :for var :in vars
+                                                   :if (not
+                                                        (funcall (find-symbol
+                                                                  "PARAMETRIC-TYPE-SYMBOL-P"
+                                                                  :polymorphic-functions)
+                                                                 var))
+                                                     :collect var)
+                                             vars)))
+                                   `(cl:type ,(ex:upgraded-cl-type ex:extype env) ,@vars))))))
 
 
 (defun decl-and-type-check-body (body &optional env)

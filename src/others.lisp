@@ -10,8 +10,10 @@ Each predicate should take three arguments: VALUE-TYPE FORM ENV")
 (defun speed-more-safety-less-p (value-type form env)
   (declare (ignore value-type form))
   (let ((optimize-decl (declaration-information 'optimize env)))
-    (> (second (assoc 'speed optimize-decl))
-       (second (assoc 'safety optimize-decl)))))
+    (if (> (second (assoc 'speed optimize-decl))
+           (second (assoc 'safety optimize-decl)))
+        'cl:the
+        nil)))
 
 (pushnew 'speed-more-safety-less-p *the-skip-predicates*)
 
@@ -20,11 +22,18 @@ Each predicate should take three arguments: VALUE-TYPE FORM ENV")
 
 Necessary: A check has to be present at the \"top-level\".  The
 runtime check can be avoided for optimization purposes if at least one
-predicate in *THE-SKIP-PREDICATES* returns non-NIL."
+predicate in *THE-SKIP-PREDICATES* returns non-NIL. Specifically, if at least
+one predicate returns CL:T, then no check is performed, otherwise if all
+predicates return CL:NIL but some return CL:THE, then the form is surrounded
+in CL:THE with UPGRADED-CL-TYPE, if all return CL:NIL, then full check is done."
   (cond ((eq t value-type)
          form)
+        ;; In some cases we want to avoid checks or declarations altogether
         ((loop :for predicate :in *the-skip-predicates*
-                 :thereis (funcall predicate value-type form env))
+                 :thereis (eq 'cl:t (funcall predicate value-type form env)))
+         form)
+        ((loop :for predicate :in *the-skip-predicates*
+                 :thereis (eq 'cl:the (funcall predicate value-type form env)))
          `(cl:the ,(upgraded-cl-type value-type env) ,form))
         (t
          (optima:match value-type
