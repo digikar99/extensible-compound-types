@@ -28,6 +28,8 @@
            #:check-type
            #:*the-skip-predicates*
 
+           #:type-name-parameters
+
            #:define-compound-type
            #:undefine-compound-type
            #:define-compound-type-compiler-macro
@@ -145,6 +147,25 @@
       (setf (gethash name *type-expanders*) lambda)
       (remhash name *type-expanders*)))
 
+(defparameter *type-name-parameters* (make-hash-table))
+
+(defun type-name-parameters (name)
+  (multiple-value-bind (name-parameters existsp)
+      (gethash name *type-name-parameters*)
+    (cond (existsp
+           name-parameters)
+          ((find-class name nil)
+           name)
+          (t
+           (error 'unknown-type-specifier :type name)))))
+
+(defun (setf type-name-parameters) (name-parameters name)
+  (if name-parameters
+      (setf (gethash name *type-name-parameters*) name-parameters)
+      (remhash name *type-name-parameters*)))
+
+
+
 (defvar *excluded-packages-for-cl-deftype*
   (mapcar #'find-package '(:cl :alexandria :trivial-types :sb-kernel))
   "EXTENSIBLE-COMPOUND-TYPES:DEFTYPE avoids adding a CL:DEFTYPE if the NAME is
@@ -176,9 +197,11 @@ also adds a CL:DEFTYPE with the expansion being determined by UPGRADED-CL-TYPE"
       `(progn
          ,(unless (member (symbol-package name) *excluded-packages-for-cl-deftype*)
             `(cl:deftype ,name (&whole ,form ,@lambda-list)
+               ,@(when doc `(,doc))
                ,(ignore-all-form-from-lambda-list lambda-list)
                (upgraded-cl-type ,form)))
          (eval-when (:compile-toplevel :load-toplevel :execute)
+           (setf (type-name-parameters ',name) '(,name ,@lambda-list))
            (setf (type-expander ',name)
                  ,(parse-macro name
                                lambda-list
@@ -233,6 +256,7 @@ also adds a CL:DEFTYPE with the expansion being determined by UPGRADED-CL-TYPE"
                            nil)
                           (t
                            type))))
+    ;; FIXME: Why do we need EXPANSION as well as CLASSP?
     (if (and classp
              (listp expansion)
              (null (cdr expansion)))

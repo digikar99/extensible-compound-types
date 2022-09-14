@@ -70,9 +70,11 @@ Note: Whenever possible, it is recommended to use EXTENSIBLE-COMPOUND-TYPES:DEFT
                     cl-type
                     (not (member (symbol-package name) *excluded-packages-for-cl-deftype*)))
             `(cl:deftype ,name (&whole ,form ,@lambda-list)
+               ,@(when doc `(,doc))
                ,(ignore-all-form-from-lambda-list lambda-list)
                (upgraded-cl-type ,form)))
          (eval-when (:compile-toplevel :load-toplevel :execute)
+           (setf (type-name-parameters ',name) '(,name ,@lambda-list))
            (setf (compound-type-lambda-expression ',name)
                  '(lambda (,object-name ,@lambda-list) ,@body))
            (setf (compound-type-lambda ',name)
