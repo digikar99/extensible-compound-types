@@ -186,6 +186,10 @@ For instance, the types
 - (ARRAY * 1) and (ARRAY SINGLE-FLOAT *)
 
 TODO: Improve documentation for this."
+  ;; If either is a subtype of NIL, then intersection is NIL
+  (when (or (subtypep type1 nil env)
+            (subtypep type2 nil env))
+    (return-from intersect-type-p (values nil t)))
   ;; May be first is a SUBTYPE of the second
   (multiple-value-bind (subtypep knownp)
       (subtypep type1 type2)
