@@ -236,6 +236,8 @@ also adds a CL:DEFTYPE with the expansion being determined by UPGRADED-CL-TYPE"
 
 (defun typexpand-1 (type &optional env)
   "Returns two values: EXPANSION and EXPANDEDP"
+  (when (member type '(cl:t cl:nil))
+    (return-from typexpand-1 type))
   (let* ((atomp (atom type))
          (type-name (if (atom type)
                         #-ecl type
