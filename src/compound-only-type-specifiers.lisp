@@ -6,29 +6,46 @@
   (every (lambda (type) (typep o type))
          type-specifiers))
 
+(defmethod %upgraded-cl-type ((name (eql 'and)) type &optional env)
+  `(and ,@(mapcar (lambda (type) (upgraded-cl-type type env)) (rest type))))
+
 (define-compound-type-compiler-macro and (o-form &rest type-specifier-forms)
   (once-only (o-form)
     `(cl:and ,@(loop :for type-specifier-form :in type-specifier-forms
                      :collect `(typep ,o-form ,type-specifier-form)))))
+
+
 
 (define-compound-type or (o &rest type-specifiers)
   (declare (dynamic-extent type-specifiers))
   (loop :for type :in type-specifiers
           :thereis (typep o type)))
 
+(defmethod %upgraded-cl-type ((name (eql 'or)) type &optional env)
+  `(or ,@(mapcar (lambda (type) (upgraded-cl-type type env)) (rest type))))
+
 (define-compound-type-compiler-macro or (o-form &rest type-specifier-forms)
   (once-only (o-form)
     `(cl:or ,@(loop :for type-specifier-form :in type-specifier-forms
                     :collect `(typep ,o-form ,type-specifier-form)))))
 
+
+
 (define-compound-type eql (o object)
   (cl:eql o object))
+
+
 
 (deftype member (&rest objects)
   `(or ,@(loop :for o :in objects :collect `(eql ,o))))
 
+
+
 (define-compound-type not (o typespec)
   (not (typep o typespec)))
+
+(defmethod %upgraded-cl-type ((name (eql 'not)) type &optional env)
+  `(not ,(upgraded-cl-type (second type) env)))
 
 (define-compound-type (satisfies :non-null nil) (o predicate-name)
   (funcall (fdefinition predicate-name) o))
@@ -41,3 +58,9 @@
 (define-compound-type (values :non-null nil) (o &rest type-specifiers)
   (typep o (first type-specifiers)))
 
+(defmethod %upgraded-cl-type ((name (eql 'values)) type &optional env)
+  `(values ,@(mapcar (lambda (type)
+                       (if (member type lambda-list-keywords)
+                           type
+                           (upgraded-cl-type type env)))
+                     (rest type))))
