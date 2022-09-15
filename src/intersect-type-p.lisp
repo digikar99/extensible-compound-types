@@ -30,13 +30,17 @@
   (let ((t1 (simplify-or-type type1)))
     (cond ((and (listp t1)
                 (eq 'or (first t1)))
-           (values (some (lambda (t1)
-                           (multiple-value-bind (intersectp knownp)
-                               (intersect-type-p t1 type2 env)
-                             ;; We are only looking for *some* type-specifier to intersect
-                             (and knownp intersectp)))
-                         (rest t1))
-                   t))
+           (loop :for t1 :in (rest t1)
+                 :with all-known-p := cl:t
+                 :do (multiple-value-bind (intersectp knownp)
+                         (intersect-type-p t1 type2 env)
+                       ;; We are only looking for *some* type-specifier to intersect
+                       (cond ((and knownp intersectp)
+                              (return-from %intersect-type-p
+                                (values t t)))
+                             ((not knownp)
+                              (setq all-known-p cl:nil))))
+                 :finally (return (values nil all-known-p))))
           (t
            (multiple-value-bind (intersectp knownp)
                (intersect-type-p t1 type2 env)
