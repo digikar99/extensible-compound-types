@@ -132,25 +132,24 @@ rather than variables with new bindings."
 (defmacro excl:let (bindings &body body &environment env)
   (let* ((form-type-declarations
            (loop :for binding :in bindings
-                 :nconcing (multiple-value-bind (var form)
-                               (if (symbolp binding)
-                                   (values binding nil)
-                                   (values-list binding))
-                             (let ((form-type (or (ignore-errors
-                                                   (cl-form-types:nth-form-type form env 0 t t))
-                                                  cl:t)))
-                               (cond ((eq cl:t form-type)
-                                      ())
-                                     ((and (member :sbcl cl:*features*)
-                                           (symbol-package var)
-                                           (string= "SB"
-                                                    (subseq (package-name (symbol-package var)) 0 2)))
-                                      ())
-                                     ((special-variable-p var env)
-                                      ())
-                                     (t
-                                      `((ex:extype ,form-type ,var)
-                                        (cl:type ,(ex:upgraded-cl-type form-type env) ,var))))))))
+                 :nconcing
+                 (multiple-value-bind (var form)
+                     (if (symbolp binding)
+                         (values binding nil)
+                         (values-list binding))
+                   (unless (or (special-variable-p var env)
+                               (and (member :sbcl cl:*features*)
+                                    (symbol-package var)
+                                    (string= "SB"
+                                             (subseq (package-name (symbol-package var)) 0 2))))
+                     (let ((form-type (or (ignore-errors
+                                           (cl-form-types:nth-form-type form env 0 t t))
+                                          cl:t)))
+                       (cond ((eq cl:t form-type)
+                              ())
+                             (t
+                              `((ex:extype ,form-type ,var)
+                                (cl:type ,(ex:upgraded-cl-type form-type env) ,var)))))))))
          (vars (mapcar #'third form-type-declarations))
          (augmented-env (augment-environment nil
                                              :variable vars
@@ -176,35 +175,33 @@ rather than variables with new bindings."
                          (if (symbolp binding)
                              (values binding nil)
                              (values-list binding))
-                       (let ((form-type (or (ignore-errors
-                                             (cl-form-types:nth-form-type form form-type-env 0 t t))
-                                            cl:t)))
-                         (cond ((eq cl:t form-type)
-                                ())
-                               ((and (member :sbcl cl:*features*)
-                                     (symbol-package var)
-                                     (string= "SB"
-                                              (subseq (package-name (symbol-package var)) 0 2)))
-                                ())
-                               ((special-variable-p var env)
-                                ())
-                               (t
-                                (setq augmented-env
-                                      (augment-environment
-                                       augmented-env
-                                       :variable (list var)
-                                       :declare
-                                       `((ex:extype ,form-type ,var)
-                                         (cl:type ,(ex:upgraded-cl-type form-type form-type-env)
-                                                  ,var))))
-                                (setq form-type-env
-                                      (augment-environment
-                                       form-type-env
-                                       :variable (list var)
-                                       :declare
-                                       `((ex:extype ,form-type ,var)
-                                         (cl:type ,(ex:upgraded-cl-type form-type form-type-env)
-                                                  ,var))))))))
+                       (unless (or (special-variable-p var env)
+                                   (and (member :sbcl cl:*features*)
+                                        (symbol-package var)
+                                        (string= "SB"
+                                                 (subseq (package-name (symbol-package var)) 0 2))))
+                         (let ((form-type (or (ignore-errors
+                                               (cl-form-types:nth-form-type form form-type-env 0 t t))
+                                              cl:t)))
+                           (cond ((eq cl:t form-type)
+                                  ())
+                                 (t
+                                  (setq augmented-env
+                                        (augment-environment
+                                         augmented-env
+                                         :variable (list var)
+                                         :declare
+                                         `((ex:extype ,form-type ,var)
+                                           (cl:type ,(ex:upgraded-cl-type form-type form-type-env)
+                                                    ,var))))
+                                  (setq form-type-env
+                                        (augment-environment
+                                         form-type-env
+                                         :variable (list var)
+                                         :declare
+                                         `((ex:extype ,form-type ,var)
+                                           (cl:type ,(ex:upgraded-cl-type form-type form-type-env)
+                                                    ,var)))))))))
                  :finally (return augmented-env))))
     (multiple-value-bind (rem-body decl) (a:parse-body body)
       (multiple-value-bind (extype-decl remaining-decls)
