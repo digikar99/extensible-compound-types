@@ -14,3 +14,13 @@
                (:file "special-forms")
                (:file "macros")
                (:file "misc")))
+
+(defsystem "extensible-compound-types-cl/specializable-structs"
+  :depends-on ("cl-form-types"
+               "cl-ppcre"
+               "extensible-compound-types-cl"
+               "fiveam"
+               "polymorphic-functions")
+  :pathname #p"cl/"
+  :components ((:file "specializable-structs")))
+

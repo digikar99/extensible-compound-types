@@ -212,112 +212,25 @@ More examples for this can be found in the [[file:src/cl-compound-types.lisp][sr
 
 * Parametric Types
 
-Combined with [[https://github.com/digikar99/polymorphic-functions/][polymorphic-functions]], one /can/ create a wrapper around =extensible-compound-types= as follows. Note that this does not give you truly parametric types in the sense of ML-like languages. Instead, this is more akin to C++ templates.
+Combined with [[https://github.com/digikar99/polymorphic-functions/][polymorphic-functions]], one /can/ create a wrapper around =extensible-compound-types= as follows. Note that this does not give you truly parametric types in the sense of ML-like languages. Instead, this is more akin to C++ templates, but without the overhead of one class definition per specialization. And in this manner, it also differs from [[https://github.com/cosmos72/cl-parametric-types][cl-parametric-types]]. 
+
+C++ and cl-parametric-types create a class, structure, or function for /every/ combination of the type parameters. As a result, that approach is unsuitable for common lisp types such as =(string /length/)= or =(array * dimensions/rank)=.
+
+"extensible-compound-types-cl/specializable-structs" provides a =define-specializable-struct= to define a structure along with the additional tools to define and optimize a compound-type allowing the specification of slot types. However, if extensible-compound-types is alpha, then this system and package is pre-alpha! Experiment at your own risk, avoid use in production.
+
 
 #+BEGIN_SRC lisp
 (push :extensible-compound-types cl:*features*)
-(ql:quickload "polymorphic-functions")
+(ql:quickload "extensible-compound-types-cl/specializable-structs")
 
 (cl:defpackage parametric-types-demo
-  (:use :extensible-compound-types-cl :polymorphic-functions))
+  (:use :extensible-compound-types-cl :polymorphic-functions
+        :extensible-compound-types-cl/specializable-structs))
 
 (in-package :parametric-types-demo)
 
-(defstruct pair a b)
+(define-specializable-struct pair a b)
 
-(define-compound-type (pair :cl-type nil) (o &optional (type-a 'cl:*) (type-b 'cl:*))
-  "A user-defined compound-type that allows the specification of the
-types of the values stored in slots A and B of the structure-class
-PAIR."
-  (and (cl:typep o 'pair)
-       (with-slots (a b) o
-         (and (if (eq 'cl:* type-a)
-                  t
-                  (cl:typep a type-a))
-              (if (eq 'cl:* type-b)
-                  t
-                  (cl:typep b type-b))))))
-
-(defmethod %upgraded-cl-type ((name (eql 'pair)) type &optional env)
-  (declare (ignore type env))
-  'pair)
-
-(defmethod %subtypep ((t1 (eql 'pair)) (t2 (eql 'pair)) type1 type2 &optional env)
-  (declare (ignore t1 t2 env))
-  (destructuring-bind (&optional (t1a 'cl:*) (t1b 'cl:*)) (rest type1)
-    (destructuring-bind (&optional (t2a 'cl:*) (t2b 'cl:*)) (rest type2)
-      ;; FIXME: This does not look exhaustive
-      (cond ((and (eq t2a 'cl:*) (eq t2b 'cl:*))
-             (values t t))
-            ((and (eq t1a 'cl:*) (eq t2b 'cl:*))
-             ;; t2a is specified, but t1a is not
-             (values nil t))))))
-
-(defmethod %deparameterize-type ((car (eql 'pair)) type-specifier &optional env)
-  (declare (ignore type-specifier env))
-  car)
-
-(defmethod parametric-type-run-time-lambda-body ((type-car (eql 'pair)) type-cdr parameter)
-  (let ((accessor (cond ((eq parameter (first type-cdr))
-                         'pair-a)
-                        ((eq parameter (second type-cdr))
-                         'pair-b))))
-    `(cl:lambda (pair)
-       (declare (optimize speed)
-                (type pair pair))
-       ;; FIXME: One needs a wrapper around TYPE-OF, since TYPE-OF may not
-       ;; return what one expects; example:
-       ;; (TYPE-OF 1) ;=> BIT
-       (type-of (,accessor pair)))))
-
-(defmethod parametric-type-compile-time-lambda-body
-    ((type-car (eql 'pair)) type-cdr parameter)
-  `(cl:lambda (elt-type)
-     (destructuring-bind (&optional (type-a t) (type-b t))
-         (if (listp elt-type)
-             (rest elt-type)
-             nil)
-       (declare (ignorable type-a type-b))
-       (when (eq cl:* type-a) (setq type-a t))
-       (when (eq cl:* type-b) (setq type-b t))
-       ,(cond ((eq parameter (first type-cdr))
-               `type-a)
-              ((eq parameter (second type-cdr))
-               `type-b)
-              (t
-               (error "Unknown case"))))))
-
-(defun parametric-type-parameter-p (s)
-  (let* ((name (symbol-name s))
-         (len  (length name)))
-    (and (char= #\< (elt name 0))
-         (char= #\> (elt name (1- len))))))
-(pushnew 'parametric-type-parameter-p *parametric-type-symbol-predicates*)
-
-(defun skip-if-parametric-type-parameter (value-type form env)
-  (declare (ignore value-type env))
-  (if (and *compiler-macro-expanding-p*
-           (symbolp form)
-           (parametric-type-parameter-p form))
-      cl:t
-      cl:nil))
-(pushnew 'skip-if-parametric-type-parameter *the-skip-predicates*)
-
-
-;;; If you are not running this interactively in SLIME, ALIVE, or SLIMV or the like,
-;;; make sure that the above code is compiled before the below code begins to compile.
-;;; Perhaps, surround the part below IN-PACKAGE in an
-;;;   (EVAL-WHEN (:COMPILE-TOPLEVEL :LOAD-TOPLEVEL :EXECUTE)
-;;;     ...)
-(define-polymorphic-function slot-a (object) :overwrite t)
-(defpolymorph slot-a ((o (pair <a> <b>))) <a>
-  (pair-a o))
-(define-polymorphic-function slot-b (object) :overwrite t)
-(defpolymorph slot-b ((o (pair <a> <b>))) <b>
-  (pair-b o))
-
-
-;;; Exercise for the reader: Write a compiler-macro that emits appropriate compiler-notes
 (disassemble (lambda (o)
                (declare (extype (pair fixnum fixnum) o)
                         (optimize speed))
@@ -416,75 +329,73 @@ PAIR."
                (declare (optimize speed)
                         (type (pair single-float double-float) x y))
                (add-pair x y)))
-; Check for the presence of ADDSS and ADDSD instructions below
-; disassembly for (COMMON-LISP:LAMBDA (X Y))
-; Size: 219 bytes. Origin: #x538F5BBF                         ; (COMMON-LISP:LAMBDA
-                                                                    (X Y))
-; BBF:       488B4205         MOV RAX, [RDX+5]
-; BC3:       3C19             CMP AL, 25
-; BC5:       0F85B5000000     JNE L7
-; BCB:       66480F6EC8       MOVQ XMM1, RAX
-; BD0:       0FC6C9FD         SHUFPS XMM1, XMM1, #4r3331
-; BD4:       488B4705         MOV RAX, [RDI+5]
-; BD8:       3C19             CMP AL, 25
-; BDA:       0F859D000000     JNE L6
-; BE0:       66480F6ED8       MOVQ XMM3, RAX
-; BE5:       0FC6DBFD         SHUFPS XMM3, XMM3, #4r3331
-; BE9:       F30F58D9         ADDSS XMM3, XMM1
-; BED:       488B4A0D         MOV RCX, [RDX+13]
-; BF1:       488D41F1         LEA RAX, [RCX-15]
-; BF5:       A80F             TEST AL, 15
-; BF7:       7503             JNE L0
-; BF9:       80381D           CMP BYTE PTR [RAX], 29
-; BFC: L0:   757C             JNE L5
-; BFE:       F20F1049F9       MOVSD XMM1, [RCX-7]
-; C03:       488B4F0D         MOV RCX, [RDI+13]
-; C07:       488D41F1         LEA RAX, [RCX-15]
-; C0B:       A80F             TEST AL, 15
-; C0D:       7503             JNE L1
-; C0F:       80381D           CMP BYTE PTR [RAX], 29
-; C12: L1:   7563             JNE L4
-; C14:       F20F1051F9       MOVSD XMM2, [RCX-7]
-; C19:       F20F58D1         ADDSD XMM2, XMM1
-; C1D:       BADFEE2250       MOV EDX, #x5022EEDF             ; ':A
-; C22:       660F7EDF         MOVD EDI, XMM3
-; C26:       48C1E720         SHL RDI, 32
-; C2A:       4080CF19         OR DIL, 25
-; C2E:       BE3FEC2250       MOV ESI, #x5022EC3F             ; ':B
-; C33:       4D896D28         MOV [R13+40], R13               ; thread.pseudo-atomic-bits
-; C37:       498B4570         MOV RAX, [R13+112]              ; thread.mixed-tlab
-; C3B:       4883C010         ADD RAX, 16
-; C3F:       493B4578         CMP RAX, [R13+120]
-; C43:       7749             JNBE L9
-; C45:       49894570         MOV [R13+112], RAX              ; thread.mixed-tlab
-; C49:       4883C0FF         ADD RAX, -1
-; C4D: L2:   66C740F11D01     MOV WORD PTR [RAX-15], 285
-; C53:       4D316D28         XOR [R13+40], R13               ; thread.pseudo-atomic-bits
-; C57:       7402             JEQ L3
-; C59:       CC09             INT3 9                          ; pending interrupt trap
-; C5B: L3:   F20F1150F9       MOVSD [RAX-7], XMM2
-; C60:       488945F0         MOV [RBP-16], RAX
-; C64:       488B5DF0         MOV RBX, [RBP-16]
-; C68:       B908000000       MOV ECX, 8
-; C6D:       FF7508           PUSH QWORD PTR [RBP+8]
-; C70:       B8222F4B50       MOV EAX, #x504B2F22             ; #<FDEFN MAKE-PAIR>
-; C75:       FFE0             JMP RAX
-; C77: L4:   CC50             INT3 80                         ; OBJECT-NOT-DOUBLE-FLOAT-ERROR
-; C79:       04               BYTE #X04                       ; RCX(d)
-; C7A: L5:   CC50             INT3 80                         ; OBJECT-NOT-DOUBLE-FLOAT-ERROR
-; C7C:       04               BYTE #X04                       ; RCX(d)
-; C7D: L6:   CC4F             INT3 79                         ; OBJECT-NOT-SINGLE-FLOAT-ERROR
-; C7F:       00               BYTE #X00                       ; RAX(d)
-; C80: L7:   CC4F             INT3 79                         ; OBJECT-NOT-SINGLE-FLOAT-ERROR
-; C82:       00               BYTE #X00                       ; RAX(d)
-; C83: L8:   FF24256800A052   JMP QWORD PTR [#x52A00068]      ; SB-VM::ALLOC-TRAMP
-; C8A:       CC10             INT3 16                         ; Invalid argument count trap
-; C8C:       CC10             INT3 16                         ; Invalid argument count trap
-; C8E: L9:   6A10             PUSH 16
-; C90:       E8EEFFFFFF       CALL L8
-; C95:       58               POP RAX
-; C96:       0C0F             OR AL, 15
-; C98:       EBB3             JMP L2
+; Size: 219 bytes. Origin: #x53679E8F                         ; (COMMON-LISP:LAMBDA
+;                                                                   (X Y))
+; E8F:       488B4205         MOV RAX, [RDX+5]
+; E93:       3C19             CMP AL, 25
+; E95:       0F85B5000000     JNE L7
+; E9B:       66480F6EC8       MOVQ XMM1, RAX
+; EA0:       0FC6C9FD         SHUFPS XMM1, XMM1, #4r3331
+; EA4:       488B4705         MOV RAX, [RDI+5]
+; EA8:       3C19             CMP AL, 25
+; EAA:       0F859D000000     JNE L6
+; EB0:       66480F6ED8       MOVQ XMM3, RAX
+; EB5:       0FC6DBFD         SHUFPS XMM3, XMM3, #4r3331
+; EB9:       F30F58D9         ADDSS XMM3, XMM1
+; EBD:       488B4A0D         MOV RCX, [RDX+13]
+; EC1:       488D41F1         LEA RAX, [RCX-15]
+; EC5:       A80F             TEST AL, 15
+; EC7:       7503             JNE L0
+; EC9:       80381D           CMP BYTE PTR [RAX], 29
+; ECC: L0:   757C             JNE L5
+; ECE:       F20F1049F9       MOVSD XMM1, [RCX-7]
+; ED3:       488B4F0D         MOV RCX, [RDI+13]
+; ED7:       488D41F1         LEA RAX, [RCX-15]
+; EDB:       A80F             TEST AL, 15
+; EDD:       7503             JNE L1
+; EDF:       80381D           CMP BYTE PTR [RAX], 29
+; EE2: L1:   7563             JNE L4
+; EE4:       F20F1051F9       MOVSD XMM2, [RCX-7]
+; EE9:       F20F58D1         ADDSD XMM2, XMM1
+; EED:       BADFEE2250       MOV EDX, #x5022EEDF             ; ':A
+; EF2:       660F7EDF         MOVD EDI, XMM3
+; EF6:       48C1E720         SHL RDI, 32
+; EFA:       4080CF19         OR DIL, 25
+; EFE:       BE3FEC2250       MOV ESI, #x5022EC3F             ; ':B
+; F03:       4D896D28         MOV [R13+40], R13               ; thread.pseudo-atomic-bits
+; F07:       498B4570         MOV RAX, [R13+112]              ; thread.mixed-tlab
+; F0B:       4883C010         ADD RAX, 16
+; F0F:       493B4578         CMP RAX, [R13+120]
+; F13:       7749             JNBE L9
+; F15:       49894570         MOV [R13+112], RAX              ; thread.mixed-tlab
+; F19:       4883C0FF         ADD RAX, -1
+; F1D: L2:   66C740F11D01     MOV WORD PTR [RAX-15], 285
+; F23:       4D316D28         XOR [R13+40], R13               ; thread.pseudo-atomic-bits
+; F27:       7402             JEQ L3
+; F29:       CC09             INT3 9                          ; pending interrupt trap
+; F2B: L3:   F20F1150F9       MOVSD [RAX-7], XMM2
+; F30:       488945F0         MOV [RBP-16], RAX
+; F34:       488B5DF0         MOV RBX, [RBP-16]
+; F38:       B908000000       MOV ECX, 8
+; F3D:       FF7508           PUSH QWORD PTR [RBP+8]
+; F40:       B862AC4850       MOV EAX, #x5048AC62             ; #<FDEFN MAKE-PAIR>
+; F45:       FFE0             JMP RAX
+; F47: L4:   CC50             INT3 80                         ; OBJECT-NOT-DOUBLE-FLOAT-ERROR
+; F49:       04               BYTE #X04                       ; RCX(d)
+; F4A: L5:   CC50             INT3 80                         ; OBJECT-NOT-DOUBLE-FLOAT-ERROR
+; F4C:       04               BYTE #X04                       ; RCX(d)
+; F4D: L6:   CC4F             INT3 79                         ; OBJECT-NOT-SINGLE-FLOAT-ERROR
+; F4F:       00               BYTE #X00                       ; RAX(d)
+; F50: L7:   CC4F             INT3 79                         ; OBJECT-NOT-SINGLE-FLOAT-ERROR
+; F52:       00               BYTE #X00                       ; RAX(d)
+; F53: L8:   FF24256800A052   JMP QWORD PTR [#x52A00068]      ; SB-VM::ALLOC-TRAMP
+; F5A:       CC10             INT3 16                         ; Invalid argument count trap
+; F5C:       CC10             INT3 16                         ; Invalid argument count trap
+; F5E: L9:   6A10             PUSH 16
+; F60:       E8EEFFFFFF       CALL L8
+; F65:       58               POP RAX
+; F66:       0C0F             OR AL, 15
+; F68:       EBB3             JMP L2
 #+END_SRC
 
 * Using cl-form-types for better compile-time checks
@@ -494,25 +405,32 @@ cl-form-types can also be used to provide better compile time checks for the ext
 #+begin_src lisp
 (in-package :extensible-compound-types.impl)
 (defun cl-form-types-check (value-type form env)
-  (let ((optimize-decl (declaration-information 'optimize env)))
-    (when (> (second (assoc 'speed optimize-decl))
-             (second (assoc 'safety optimize-decl)))
+  (let ((form-type (cl-form-types:form-type form env)))
+    (when (and (member :sbcl cl:*features*)
+               (type= (upgraded-cl-type form-type env)
+                      form-type
+                      env)
+               (type= (upgraded-cl-type value-type env)
+                      value-type
+                      env))
       (return-from cl-form-types-check t))
-    (let ((form-type (cl-form-types:form-type form env)))
-      (when (and (member :sbcl cl:*features*)
-                 (type= (upgraded-cl-type form-type env)
-                        form-type
-                        env)
-                 (type= (upgraded-cl-type value-type env)
-                        value-type
-                        env))
-        (return-from cl-form-types-check t))
-      (multiple-value-bind (intersectp knownp)
-          (intersect-type-p form-type value-type env)
-        (when (and knownp (not intersectp) (not (type= form-type t)))
-          (warn "Type declarations for~%  ~S~%conflict:~%  ~S~%does not intersect with~%  ~S"
-                form form-type value-type)))
-      nil)))
+    (multiple-value-bind (intersectp knownp)
+        (intersect-type-p form-type value-type env)
+      (when (and knownp (not intersectp) (not (type= form-type t)))
+        (warn "Type declarations for~%  ~S~%conflict:~%  ~S~%does not intersect with~%  ~S"
+              form form-type value-type)))
+    (multiple-value-bind (subtypep knownp)
+        (subtypep form-type value-type env)
+      (when (or (type= form-type t)
+                (and knownp subtypep))
+        (return-from cl-form-types-check t))))
+  ;; (let ((optimize-decl (declaration-information 'optimize env)))
+  ;;   (when (> (second (assoc 'speed optimize-decl))
+  ;;            (second (assoc 'safety optimize-decl)))
+  ;;     (return-from cl-form-types-check t)))
+  (let ((optimize-decl (declaration-information 'optimize env)))
+    (when (zerop (second (assoc 'safety optimize-decl)))
+      (return-from cl-form-types-check t))))
 (pushnew 'cl-form-types-check *the-skip-predicates*)
 #+end_src
 
