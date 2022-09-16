@@ -1,9 +1,9 @@
 (in-package :extensible-compound-types-cl.impl)
 
-(excl:deftype excl:function (&optional arg-typespec value-typespec)
+(excl:deftype excl:function (&optional (arg-typespec 'cl:*) (value-typespec 'cl:*))
   `(cl:function ,arg-typespec ,value-typespec))
 
-(cl:deftype excl:function (&optional arg-typespec value-typespec)
+(cl:deftype excl:function (&optional (arg-typespec 'cl:*) (value-typespec 'cl:*))
   `(cl:function ,arg-typespec ,value-typespec))
 
 (cl:defun excl:compile (name &optional definition)
