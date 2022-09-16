@@ -203,12 +203,14 @@ the generic-function %SUBTYPEP to determine the SUBTYPEP relation."
                                   type2
                                   (car type2)))
                   ;; Simplify types
-                  (type1 (if (and (listp type1)
+                  (type1 (if (and (specializing-type-name-p type1-name)
+                                  (listp type1)
                                   (loop :for arg :in (rest type1)
                                         :always (eq 'cl:* arg)))
                              type1-name
                              type1))
-                  (type2 (if (and (listp type2)
+                  (type2 (if (and (specializing-type-name-p type2-name)
+                                  (listp type2)
                                   (loop :for arg :in (rest type2)
                                         :always (eq 'cl:* arg)))
                              type2-name
@@ -323,12 +325,14 @@ TODO: Improve documentation for this."
                   (type2-name (if atom2p
                                   type2
                                   (car type2)))
-                  (type1 (if (and (listp type1)
+                  (type1 (if (and (specializing-type-name-p type1-name)
+                                  (listp type1)
                                   (loop :for arg :in (rest type1)
                                         :always (eq 'cl:* arg)))
                              type1-name
                              type1))
-                  (type2 (if (and (listp type2)
+                  (type2 (if (and (specializing-type-name-p type2-name)
+                                  (listp type2)
                                   (loop :for arg :in (rest type2)
                                         :always (eq 'cl:* arg)))
                              type2-name

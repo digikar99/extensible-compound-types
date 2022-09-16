@@ -51,7 +51,9 @@
   "EXTENSIBLE-COMPOUND-TYPES:TYPEP relies on these whenever TYPE supplied is
   non-atomic and non-class.
 
-NAME-SPEC can be either NAME or (NAME &KEY (NON-NULL T) (CL-TYPE T) (SPECIALIZING T))
+NAME-SPEC can be either NAME or the list
+
+    (NAME &KEY (NON-NULL T) (CL-TYPE T) (SPECIALIZING T))
 
   NON-NULL being non-NIL indicates that no matter what the arguments
     in lambda-list the type is always not nil.
@@ -62,6 +64,8 @@ NAME-SPEC can be either NAME or (NAME &KEY (NON-NULL T) (CL-TYPE T) (SPECIALIZIN
   If SPECIALIZING is non-NIL, then it is assumed any list form of the
     type specifier is a SUBTYPE of the atom form. This holds for types such as
     ARRAY, SIMPLE-ARRAY, INTEGER, but is violated for types such as OR, NOT, MEMBER.
+    If SPECIALIZING is NIL, then it is also implicitly assumed that only the list
+    form of the type specifier is valid and its atomic form is invalid.
 
 Note: Whenever possible, it is recommended to use EXTENSIBLE-COMPOUND-TYPES:DEFTYPE
   and only use EXTENSIBLE-COMPOUND-TYPES:DEFINE-COMPOUND-TYPE as a last resort.
