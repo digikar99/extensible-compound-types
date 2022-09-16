@@ -3,8 +3,6 @@
 (deftype null () `(eql nil))
 ;; FIXME: Remove references to NULL
 
-(define-compound-type base-char (o) (cl:typep o 'base-char))
-
 (macrolet ((def (type)
              `(progn
                 ;; (deftype ,type (&optional (lower-limit 'cl:*) (upper-limit 'cl:*))
@@ -57,12 +55,12 @@
 
   ;; TODO: Can this be simplified?
   (def integer)
-  (def rational)
+  (def rational) ; starting with ratio does not work, since ratio type does not have low or high
   (def single-float)
   (def double-float)
-  #-sbcl
+  #-(or sbcl ccl ecl)
   (def short-float)
-  #-sbcl
+  #+ecl
   (def long-float))
 
 (defun equivalent-num-type-form (num-type low high)
@@ -83,7 +81,7 @@
   #+(or sbcl ccl ecl)
   `(or ,(equivalent-num-type-form 'single-float low high)
        ,(equivalent-num-type-form 'double-float low high)
-       #-ecl ,(equivalent-num-type-form 'long-float low high))
+       #+ecl ,(equivalent-num-type-form 'long-float low high))
   #-(or sbcl ccl ecl)
   (error "FLOAT not implemented"))
 
@@ -93,12 +91,11 @@
   #-(or sbcl ccl ecl)
   (error "SHORT-FLOAT not implemented on ~S" (lisp-implementation-type)))
 
+#-ecl
 (deftype long-float (&optional (low 'cl:*) (high 'cl:*))
   #+(or sbcl ccl)
   (equivalent-num-type-form 'double-float low high)
-  #+ecl
-  (equivalent-num-type-form 'long-float low high)
-  #-(or sbcl ccl ecl)
+  #-(or sbcl ccl)
   (error "LONG-FLOAT not implemented on ~S" (lisp-implementation-type)))
 
 (deftype real (&optional (low 'cl:*) (high 'cl:*))
@@ -125,6 +122,7 @@
           `(integer ,low ,high)))))
 
 (deftype fixnum () `(integer ,most-negative-fixnum ,most-positive-fixnum))
+(deftype bignum () `(and integer (not fixnum)))
 (deftype mod (n) `(integer 0 ,(1- n)))
 (deftype bit () `(integer 0 1))
 
@@ -223,12 +221,21 @@
            (symbol-package o))))
 
 (define-compound-type standard-char (o) (cl:typep o 'standard-char))
+;; BASE-CHAR is the UPGRADED-ARRAY-ELEMENT-TYPE of STANDARD-CHAR
+;; All the three compound-types for characters have implemented %SUBTYPEP
+;; methods in subtypep.lisp
 (define-compound-type base-char (o) (cl:typep o 'base-char))
 (define-compound-type character (o) (characterp o))
 (deftype extended-char () `(and character (not base-char)))
 
 (deftype boolean () `(member t nil))
-;; #+ecl (eval '(deftype c::gen-bool () `boolean))
+
+;; FIXME: While incorporating sequences that are not lists or vectors,
+;; one needs to think about *which* sequence protocol to support.
+;; Eg: the one in generic-cl, the one in lisp-polymorph, the one in
+;; trivial-extensible-sequences, the one in extensible-sequences,
+;; or something else?!
+(deftype sequence () `(or vector list))
 
 #+sbcl
 (define-compound-type sb-kernel:extended-sequence (o)

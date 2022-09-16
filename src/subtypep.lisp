@@ -27,9 +27,10 @@
           :do (unless (loop :for ts2 :in non-redundant-types
                               :thereis (supertypep ts1 ts2 env))
                 (push ts1 non-redundant-types)))
-    (if (null (cdr non-redundant-types))
-        (car non-redundant-types)
-        `(and ,@non-redundant-types))))
+    (case (length non-redundant-types)
+      (0 cl:t)
+      (1 (car non-redundant-types))
+      (t `(and ,@non-redundant-types)))))
 
 (defun simplify-or-type (or-type-specifier &optional env)
   (let ((ts (flatten-type-specifier-combination 'or or-type-specifier env))
@@ -38,9 +39,10 @@
           :do (unless (loop :for ts2 :in non-redundant-types
                               :thereis (subtypep ts1 ts2 env))
                 (push ts1 non-redundant-types)))
-    (if (null (cdr non-redundant-types))
-        (car non-redundant-types)
-        `(or ,@non-redundant-types))))
+    (case (length non-redundant-types)
+      (0 cl:nil)
+      (1 (car non-redundant-types))
+      (t `(or ,@non-redundant-types)))))
 
 (defmethod %subtypep ((t1-name (eql 'and)) t2-name type1 type2 &optional env)
   (let ((type1 (simplify-and-type type1)))
@@ -68,7 +70,7 @@
     (cond ((and (listp type2)
                 (eq 'and (first type2)))
            (values (every (lambda (type)
-                           (subtypep type1 type env))
+                            (subtypep type1 type env))
                           (rest type2))
                    t))
           (t
