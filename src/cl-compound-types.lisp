@@ -240,6 +240,7 @@
 #+sbcl
 (define-compound-type sb-kernel:extended-sequence (o)
   (cl:typep o 'sb-kernel:extended-sequence))
+#+sbcl
 (defmethod %upgraded-cl-type ((name (eql 'sb-kernel:extended-sequence)) type &optional env)
   (declare (ignore type env))
   name)
