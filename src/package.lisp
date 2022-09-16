@@ -170,12 +170,15 @@
 
 (defparameter *type-expanders* (make-hash-table))
 
-(defun type-expander (name)
+(defun type-expander (name &optional (error-if-not-exists t))
   (multiple-value-bind (expander existsp)
       (gethash name *type-expanders*)
-    (if existsp
-        expander
-        (error 'unknown-type-specifier :type name))))
+    (cond (existsp
+           expander)
+          (error-if-not-exists
+           (error 'unknown-type-specifier :type name))
+          (t
+           nil))))
 
 (defun (setf type-expander) (lambda name)
   (if lambda
@@ -184,15 +187,17 @@
 
 (defparameter *type-name-parameters* (make-hash-table))
 
-(defun type-name-parameters (name)
+(defun type-name-parameters (name &optional (error-if-not-exists t))
   (multiple-value-bind (name-parameters existsp)
       (gethash name *type-name-parameters*)
     (cond (existsp
            name-parameters)
           ((find-class name nil)
            name)
+          (error-if-not-exists
+           (error 'unknown-type-specifier :type name))
           (t
-           (error 'unknown-type-specifier :type name)))))
+           nil))))
 
 (defun (setf type-name-parameters) (name-parameters name)
   (if name-parameters
@@ -260,14 +265,26 @@ also adds a CL:DEFTYPE with the expansion being determined by UPGRADED-CL-TYPE"
 (defun type-specifier-p (object &optional env)
   (and (or (listp object)
            (symbolp object))
-       (let* ((atomp (atom object))
-              (type-name (if (atom object) object (car object)))
+       (let* ((atomp           (atom object))
+              (type-name       (if (atom object) object (car object)))
+              (name-parameters (type-name-parameters type-name nil))
+              (num-required    (if (listp name-parameters)
+                                   (loop :for i :from 0
+                                         :for parameter :in (rest name-parameters)
+                                         :if (member parameter lambda-list-keywords)
+                                           :do (return i)
+                                         :finally (return i))
+                                   0))
+              (num-supplied    (etypecase object
+                                 (atom 0)
+                                 (list (1- (length object)))))
               (classp (and atomp (find-class type-name nil env))))
-         (or (if classp t nil)
-             (nth-value 0 (ignore-some-conditions (unknown-type-specifier)
-                            (progn
-                              (type-expander type-name)
-                              t)))))))
+         (and (<= num-required num-supplied)
+              (or (if classp t nil)
+                  (nth-value 0 (ignore-some-conditions (unknown-type-specifier)
+                                 (progn
+                                   (type-expander type-name)
+                                   t))))))))
 
 (defun typexpand-1 (type &optional env)
   "Returns two values: EXPANSION and EXPANDEDP"
@@ -279,8 +296,7 @@ also adds a CL:DEFTYPE with the expansion being determined by UPGRADED-CL-TYPE"
                         #+ecl (if (eq type 'c::gen-bool) 'boolean type)
                         (car type)))
          (classp (and atomp (find-class type-name nil env)))
-         (expander (ignore-some-conditions (unknown-type-specifier)
-                     (type-expander type-name)))
+         (expander (type-expander type-name nil))
          (expansion (cond ((eq expander 'compound-type-nonexpander)
                            (return-from typexpand-1 (values type nil)))
                           (expander
