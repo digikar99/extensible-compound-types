@@ -109,6 +109,32 @@ in CL:THE with UPGRADED-CL-TYPE, if all return CL:NIL, then full check is done."
 ;;; It is up to the user to implement the correct subtypep relation in the case of
 ;;; using compound types as parametric-types.
 
+
+
+(defparameter *exclusive-types-table* (make-hash-table))
+
+(defmacro define-mutually-exclusive-types (&body types &environment env)
+  (flet ((ensure-compound-type (type)
+           (assert (and (symbolp type)
+                        (or (find-class type nil env)
+                            (compound-type-lambda type)))
+                   ()
+                   "Expected~%  ~S~%to be a symbol and a primitive compound type specifier defined using DEFINE-COMPOUND-TYPE~%but~%  (COMPOUND-TYPE-LAMBDA ~S)~%did not return non-NIL indicating the absence of an appropriate DEFINE-COMPOUND-TYPE form"
+                   type type)))
+    (loop :for type :in types
+          :do (etypecase type
+                (list (mapc #'ensure-compound-type type))
+                (atom (ensure-compound-type type))))
+    (let ((types (loop :for type :in types :collect (ensure-list type))))
+      `(progn
+         ,@(apply #'map-product
+                  (lambda (&rest types)
+                    `(progn
+                       ,@(loop :for type :in types
+                               :collect `(unionf (gethash ',type *exclusive-types-table*)
+                                                 ',(remove type types)))))
+                  types)))))
+
 (defun subtypep (type1 type2 &optional environment)
   "Behaves like CL:SUBTYPEP when type1 and type2 are atomic type
 specifiers, corresponding to a CLASS; but when either is a list, calls
@@ -131,19 +157,40 @@ the generic-function %SUBTYPEP to determine the SUBTYPEP relation."
           ((and class1p (or class2p (eql nil type2)))
            (cl:subtypep type1 type2 environment))
           (t
-           (let ((type1-name (if atom1p
-                                 type1
-                                 (car type1)))
-                 (type2-name (if atom2p
-                                 type2
-                                 (car type2))))
-             (%subtypep type1-name type2-name type1 type2 environment))))))
+           (let* ((type1-name (if atom1p
+                                  type1
+                                  (car type1)))
+                  (type2-name (if atom2p
+                                  type2
+                                  (car type2))))
+             (if (or (member type1-name (gethash type2-name *exclusive-types-table*))
+                     (member type2-name (gethash type1-name *exclusive-types-table*)))
+                 (values nil t)
+                 (%subtypep type1-name type2-name type1 type2 environment)))))))
 
 (defgeneric %subtypep (t1-name t2-name type1 type2 &optional env))
 
 (defmethod %subtypep (t1-name t2-name type1 type2 &optional env)
-  (declare (ignore t1-name t2-name type1 type2 env))
-  (values nil nil))
+  (declare (ignore type1))
+  (cond ((and (if (atom type2) t (null (rest type2)))
+              (specializing-type-name-p t1-name))
+         (cl:subtypep t1-name t2-name env))
+        ((and (if (atom type1) t (null (rest type1)))
+              (find-class t1-name nil env)
+              (specializing-type-name-p t2-name))
+         (multiple-value-bind (subtypep knownp)
+             (cl:subtypep t1-name t2-name env)
+           (cond ((and knownp (not subtypep))
+                  (values nil t))
+                 ;; TYPE2 is necessarily a list
+                 ((next-method-p)
+                  (call-next-method))
+                 (t
+                  (values nil nil)))))
+        ((next-method-p)
+         (call-next-method))
+        (t
+         (values nil nil))))
 
 (defun supertypep (type1 type2 &optional environment)
   (subtypep type2 type1 environment))
@@ -186,6 +233,14 @@ For instance, the types
 - (ARRAY * 1) and (ARRAY SINGLE-FLOAT *)
 
 TODO: Improve documentation for this."
+  ;; If the types are mutually exclusive, then their intersection is NIL
+  (let* ((type1 (typexpand type1 env))
+         (type2 (typexpand type2 env))
+         (name1 (if (listp type1) (first type1) type1))
+         (name2 (if (listp type2) (first type2) type2)))
+    (when (or (member name2 (gethash name1 *exclusive-types-table*))
+              (member name1 (gethash name2 *exclusive-types-table*)))
+      (return-from intersect-type-p (values nil t))))
   ;; If either is a subtype of NIL, then intersection is NIL
   (when (or (subtypep type1 nil env)
             (subtypep type2 nil env))

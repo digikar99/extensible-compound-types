@@ -219,64 +219,7 @@
     (t1 (t2 (eql 'simple-array)) type1 type2 &optional env)
   (%intersect-type-p t2 t1 type2 type1 env))
 
-
-(defmacro define-mutually-exclusive-types (&body types &environment env)
-  (loop :for type :in types
-        :do (assert (and (symbolp type)
-                         (or (find-class type nil env)
-                             (compound-type-lambda type)))
-                    ()
-                    "Expected~%  ~S~%to be a symbol and a primitive compound type specifier defined using DEFINE-COMPOUND-TYPE~%but~%  (COMPOUND-TYPE-LAMBDA ~S)~%did not return non-NIL indicating the absence of an appropriate DEFINE-COMPOUND-TYPE form"
-                    type type))
-  (flet ((def (type1 type2)
-           `(progn
-              (defmethod %intersect-type-p ((t1 (eql ',type1)) (t2 (eql ',type2))
-                                            type1 type2 &optional env)
-                (declare (ignore t1 t2 type1 type2 env))
-                (values nil t))
-              (defmethod %intersect-type-p ((t1 (eql ',type2)) (t2 (eql ',type1))
-                                            type1 type2 &optional env)
-                (declare (ignore t1 t2 type1 type2 env))
-                (values nil t))
-              (defmethod %subtypep ((n1 (eql ',type1)) (n2 (eql ',type2)) t1 t2 &optional env)
-                (declare (ignore n1 n2 t1 t2 env))
-                (values nil t))
-              (defmethod %subtypep ((n1 (eql ',type2)) (n2 (eql ',type1)) t1 t2 &optional env)
-                (declare (ignore n1 n2 t1 t2 env))
-                (values nil t)))))
-
-    `(progn
-       ,@(loop :for (t1 . rest) :on types
-               :appending
-               (loop :for t2 :in rest
-                     :collect (def t1 t2))))))
-
 (define-mutually-exclusive-types
-  cons array symbol character rational single-float double-float complex function)
-
-(define-mutually-exclusive-types
-  cons simple-array symbol character rational single-float double-float complex function)
-
-(define-mutually-exclusive-types
-  cons array symbol character integer single-float double-float complex function)
-
-(define-mutually-exclusive-types
-  cons simple-array symbol character integer single-float double-float complex function)
-
-(macrolet ((def (type)
-             `(define-mutually-exclusive-types
-                ,type null)))
-
-  (def cons)
-  (def array)
-  (def simple-array)
-  (def character)
-  (def integer)
-  (def rational)
-  (def float)
-  (def single-float)
-  (def double-float)
-  #-sbcl
-  (def short-float)
-  #-sbcl
-  (def long-float))
+  cons (null symbol) character single-float double-float complex function pathname
+  (array simple-array)
+  (integer rational))
