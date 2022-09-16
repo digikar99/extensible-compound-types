@@ -162,7 +162,18 @@ the generic-function %SUBTYPEP to determine the SUBTYPEP relation."
                                   (car type1)))
                   (type2-name (if atom2p
                                   type2
-                                  (car type2))))
+                                  (car type2)))
+                  ;; Simplify types
+                  (type1 (if (and (listp type1)
+                                  (loop :for arg :in (rest type1)
+                                        :always (eq 'cl:* arg)))
+                             type1-name
+                             type1))
+                  (type2 (if (and (listp type2)
+                                  (loop :for arg :in (rest type2)
+                                        :always (eq 'cl:* arg)))
+                             type2-name
+                             type2)))
              (if (or (member type1-name (gethash type2-name *exclusive-types-table*))
                      (member type2-name (gethash type1-name *exclusive-types-table*)))
                  (values nil t)
@@ -267,12 +278,22 @@ TODO: Improve documentation for this."
                (cl:subtypep `(and ,type1 ,type2) nil env)
              (values (not intersection-null-p) knownp)))
           (t
-           (let ((type1-name (if atom1p
-                                 type1
-                                 (car type1)))
-                 (type2-name (if atom2p
-                                 type2
-                                 (car type2))))
+           (let* ((type1-name (if atom1p
+                                  type1
+                                  (car type1)))
+                  (type2-name (if atom2p
+                                  type2
+                                  (car type2)))
+                  (type1 (if (and (listp type1)
+                                  (loop :for arg :in (rest type1)
+                                        :always (eq 'cl:* arg)))
+                             type1-name
+                             type1))
+                  (type2 (if (and (listp type2)
+                                  (loop :for arg :in (rest type2)
+                                        :always (eq 'cl:* arg)))
+                             type2-name
+                             type2)))
              (%intersect-type-p type1-name type2-name type1 type2 env))))))
 
 (defgeneric %intersect-type-p (type1-name type2-name type1 type2 &optional env)

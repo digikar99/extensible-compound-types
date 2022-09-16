@@ -20,6 +20,7 @@
            #:intersect-type-p
            #:%intersect-type-p
            #:intersection-null-p
+           #:specializing-type-name-p
 
            #:type=
            #:supertypep
