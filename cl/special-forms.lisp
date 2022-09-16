@@ -1,5 +1,8 @@
 (in-package :extensible-compound-types-cl.impl)
 
+(defun special-variable-p (var &optional env)
+  (eq :special (nth-value 0 (variable-information var env))))
+
 (defun extract-declaration (declarations name)
   "Returns two values:
 - extracted declaration
@@ -43,14 +46,29 @@
                    (extract-declaration '((declare (excl:extype integer x y) (ignore x)))
                                         'excl:extype)))))
 
-(defun prepare-extype-checks (extype-decl)
-  (a:mappend (lambda (extype-decl)
-               (destructuring-bind (extype &rest vars) (rest extype-decl)
-                 (loop :for var :in vars
-                       :collect `(ex:check-type ,var ,extype))))
-             (rest extype-decl)))
+(defun prepare-extype-checks (extype-decl &optional env)
+  "ENV should be passed only if the declarations pertain to already bound variables,
+rather than variables with new bindings."
+  (a:mappend
+   (lambda (extype-decl)
+     (destructuring-bind (extype &rest vars) (rest extype-decl)
+       (when extype                   ; skip over NIL type specifiers by mistake
+         (loop :for var :in vars
+               :do (when env
+                     (a:when-let (old-type (variable-type var env))
+                       (multiple-value-bind (intersectp knownp)
+                           (ex:intersect-type-p extype old-type env)
+                         (cond ((and knownp (not intersectp))
+                                (error 'simple-type-error
+                                       :format-control
+                                       "~%~S was derived to be of type~%  ~S~%but is being declared to be of type~%  ~S~%but the two types do not intersect"
+                                       :format-arguments (list var old-type extype)))
+                               ((and knownp intersectp)
+                                (setq extype `(and ,extype ,old-type)))))))
+               :collect `(ex:check-type ,var ,extype)))))
+   (rest extype-decl)))
 
-(defun extype-declarations (decl)
+(defun extype-declarations (decl &optional env)
   "Returns two values: EXTYPE-DECL and REMAINING-DECL"
   (multiple-value-bind (extype-decl remaining-decls)
       (extract-declaration decl 'ex:extype)
@@ -112,19 +130,93 @@
 ;;; 2. Convert EX:EXTYPE declarations to CL:TYPE declarations.
 ;;; 3. Add initial EX:EXTYPE checks. This is done using EX:CHECK-TYPE by PREPARE-EXTYPE-CHECKS.
 (defmacro excl:let (bindings &body body &environment env)
-  (multiple-value-bind (rem-body decl) (a:parse-body body)
-    (multiple-value-bind (extype-decl remaining-decls)
-        (extype-declarations decl)
-      `(clel:let ,bindings
-         ,@(remove-if #'null
-                      (list* (cl-type-declarations extype-decl env)
-                             extype-decl
-                             remaining-decls))
-         ,@(prepare-extype-checks extype-decl)
-         ,@rem-body))))
+  (let* ((form-type-declarations
+           (loop :for binding :in bindings
+                 :nconcing (multiple-value-bind (var form)
+                               (if (symbolp binding)
+                                   (values binding nil)
+                                   (values-list binding))
+                             (let ((form-type (or (ignore-errors
+                                                   (cl-form-types:nth-form-type form env 0 t t))
+                                                  cl:t)))
+                               (cond ((eq cl:t form-type)
+                                      ())
+                                     ((and (member :sbcl cl:*features*)
+                                           (symbol-package var)
+                                           (string= "SB"
+                                                    (subseq (package-name (symbol-package var)) 0 2)))
+                                      ())
+                                     ((special-variable-p var env)
+                                      ())
+                                     (t
+                                      `((ex:extype ,form-type ,var)
+                                        (cl:type ,(ex:upgraded-cl-type form-type env) ,var))))))))
+         (vars (mapcar #'third form-type-declarations))
+         (augmented-env (augment-environment nil
+                                             :variable vars
+                                             :declare form-type-declarations)))
+    (multiple-value-bind (rem-body decl) (a:parse-body body)
+      (multiple-value-bind (extype-decl remaining-decls)
+          (extype-declarations decl)
+        `(clel:let ,bindings
+           ,@(remove-if #'null
+                        (list* (cl-type-declarations extype-decl env)
+                               extype-decl
+                               remaining-decls))
+           ;; Passing AUGMENTED-ENV to PREPARE-EXTYPE-CHECKS to check for types of FORMs
+           ,@(prepare-extype-checks extype-decl augmented-env)
+           ,@rem-body)))))
 
 (defmacro excl:let* (bindings &body body &environment env)
-  `(clel:let* ,@(rest (macroexpand-1 `(excl:let ,bindings ,@body) env))))
+  (let* ((augmented-env
+           (loop :with augmented-env := nil
+                 :with form-type-env := env
+                 :for binding :in bindings
+                 :do (multiple-value-bind (var form)
+                         (if (symbolp binding)
+                             (values binding nil)
+                             (values-list binding))
+                       (let ((form-type (or (ignore-errors
+                                             (cl-form-types:nth-form-type form form-type-env 0 t t))
+                                            cl:t)))
+                         (cond ((eq cl:t form-type)
+                                ())
+                               ((and (member :sbcl cl:*features*)
+                                     (symbol-package var)
+                                     (string= "SB"
+                                              (subseq (package-name (symbol-package var)) 0 2)))
+                                ())
+                               ((special-variable-p var env)
+                                ())
+                               (t
+                                (setq augmented-env
+                                      (augment-environment
+                                       augmented-env
+                                       :variable (list var)
+                                       :declare
+                                       `((ex:extype ,form-type ,var)
+                                         (cl:type ,(ex:upgraded-cl-type form-type form-type-env)
+                                                  ,var))))
+                                (setq form-type-env
+                                      (augment-environment
+                                       form-type-env
+                                       :variable (list var)
+                                       :declare
+                                       `((ex:extype ,form-type ,var)
+                                         (cl:type ,(ex:upgraded-cl-type form-type form-type-env)
+                                                  ,var))))))))
+                 :finally (return augmented-env))))
+    (multiple-value-bind (rem-body decl) (a:parse-body body)
+      (multiple-value-bind (extype-decl remaining-decls)
+          (extype-declarations decl)
+        `(clel:let* ,bindings
+           ,@(remove-if #'null
+                        (list* (cl-type-declarations extype-decl env)
+                               extype-decl
+                               remaining-decls))
+           ;; Passing AUGMENTED-ENV to PREPARE-EXTYPE-CHECKS to check for types of FORMs
+           ,@(prepare-extype-checks extype-decl augmented-env)
+           ,@rem-body)))))
 
 (defmacro excl:locally (&body body &environment env)
   (multiple-value-bind (rem-body decl) (a:parse-body body)
@@ -135,7 +227,8 @@
                         (list* (cl-type-declarations extype-decl env)
                                extype-decl
                                remaining-decls))
-         ,@(prepare-extype-checks extype-decl)
+         ;; Passing ENV to PREPARE-EXTYPE-CHECKS since these are old bindings
+         ,@(prepare-extype-checks extype-decl env)
          ,@rem-body))))
 
 (defun process-function-definition (definition)
@@ -150,6 +243,8 @@
                       (list* (cl-type-declarations extype-decl env)
                              extype-decl
                              remaining-decls))
+         ;; Not passing ENV to PREPARE-EXTYPE-CHECKS since these are essentially new bindings
+         ;; FIXME: Should check for which variables are parameters and which are not
          ,@(prepare-extype-checks extype-decl)
          ,@rem-body))))
 
@@ -165,9 +260,10 @@
         (extype-declarations decl)
       `(clel:symbol-macrolet ,macrobindings
          ,@(remove-if #'null
-                      (list* (cl-type-declarations extype-decl env)
+                      (list* (cl-type-declarations extype-decl)
                              extype-decl
                              remaining-decls))
+         ;; Not passing ENV to PREPARE-EXTYPE-CHECKS since these are essentially new bindings
          ,@(prepare-extype-checks extype-decl)
          ,@rem-body))))
 

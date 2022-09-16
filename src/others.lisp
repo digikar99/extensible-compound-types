@@ -54,7 +54,20 @@ in CL:THE with UPGRADED-CL-TYPE, if all return CL:NIL, then full check is done."
 
         ((loop :for predicate :in *the-skip-predicates*
                  :thereis (eq 'cl:the (funcall predicate value-type form env)))
-         `(cl:the ,(upgraded-cl-type value-type env) ,form))
+         (optima:match value-type
+           ((list* 'cl:values _)
+            (with-gensyms (fn)
+              `(flet ((,fn () ,form))
+                 (declare (exftype (function () ,value-type) ,fn)
+                          (cl:ftype (function () ,(upgraded-cl-type value-type)) ,fn)
+                          (inline ,fn))
+                 (,fn))))
+           (_
+            (with-gensyms (var)
+              `(let ((,var ,form))
+                 (declare (extype ,value-type ,var)
+                          (cl:type ,(upgraded-cl-type value-type) ,var))
+                 ,var)))))
 
         (t
          (optima:match value-type

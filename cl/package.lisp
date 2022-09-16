@@ -104,4 +104,6 @@
   (:local-nicknames (:excl :extensible-compound-types-cl)
                     (:ex   :extensible-compound-types)
                     (:a    :alexandria)
-                    (:clel :cl-environments-cl)))
+                    (:clel :cl-environments-cl))
+  (:import-from :cl-form-types
+                #:variable-type))
