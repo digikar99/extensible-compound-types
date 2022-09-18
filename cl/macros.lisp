@@ -7,9 +7,9 @@
       `(clel:lambda ,args
          ,@(if doc-string (list doc-string) nil)
          ,@(remove-if #'null
-                      (list* (cl-type-declarations extype-decl env)
-                             extype-decl
-                             remaining-decls))
+                      (list (cl-type-declarations extype-decl env)
+                            extype-decl
+                            remaining-decls))
          ,@(prepare-extype-checks extype-decl)
          ,@rem-body))))
 
@@ -50,12 +50,12 @@
 (defmacro excl:destructuring-bind (lambda-list expression &body body &environment env)
   (multiple-value-bind (rem-body decl) (a:parse-body body)
     (multiple-value-bind (extype-decl remaining-decls)
-        (extract-declaration decl 'ex:extype)
+        (extype-declarations decl)
       `(clel:destructuring-bind ,lambda-list ,expression
          ,@(remove-if #'null
-                      (list* (cl-type-declarations extype-decl env)
-                             extype-decl
-                             remaining-decls))
+                      (list (cl-type-declarations extype-decl env)
+                            extype-decl
+                            remaining-decls))
          ,@(prepare-extype-checks extype-decl)
          ,@rem-body))))
 
@@ -71,7 +71,7 @@
 
 (defmacro excl:do-symbols ((var &optional (package (quote cl:*package*))
                                   (result-form nil result-form-p))
-                               &body body-decls &environment env)
+                           &body body-decls &environment env)
   `(clel:do-symbols ,(if result-form-p
                          `(,var ,package ,result-form)
                          `(,var ,package))
@@ -89,25 +89,25 @@
                                        (result-form nil result-form-p))
                                     &body body-decls &environment env)
   `(clel:do-external-symbols ,(cond ((and packagep result-form-p)
-                                   `(,var ,package ,result-form))
-                                  (packagep
-                                   `(,var ,package))
-                                  (t
-                                   `(,var)))
+                                     `(,var ,package ,result-form))
+                                    (packagep
+                                     `(,var ,package))
+                                    (t
+                                     `(,var)))
      ,@(decl-and-type-check-body body-decls env)))
 
 (defmacro excl:dolist ((var list &optional (result-form nil result-form-p))
                        &body body &environment env)
   `(clel:dolist ,(if result-form-p
-                   `(,var ,list ,result-form)
-                   `(,var ,list))
+                     `(,var ,list ,result-form)
+                     `(,var ,list))
      ,@(decl-and-type-check-body body env)))
 
 (defmacro excl:dotimes ((var count &optional (result-form nil result-form-p))
                         &body body &environment env)
   `(clel:dotimes ,(if result-form-p
-                    `(,var ,count ,result-form)
-                    `(,var ,count))
+                      `(,var ,count ,result-form)
+                      `(,var ,count))
      ,@(decl-and-type-check-body body env)))
 
 (defmacro excl:handler-case (form &rest cases &environment env)
@@ -135,9 +135,9 @@
                                       (member (first body-form)
                                               '(cl:lambda excl:lambda clel:lambda)))
                                  `(clel:lambda ,@(rest
-                                                (macroexpand-1
-                                                 `(excl:lambda ,@(rest body-form))
-                                                 env)))
+                                                  (macroexpand-1
+                                                   `(excl:lambda ,@(rest body-form))
+                                                   env)))
                                  body-form))))))))
 
 (defmacro excl:with-slots (slots instance &body body &environment env)
