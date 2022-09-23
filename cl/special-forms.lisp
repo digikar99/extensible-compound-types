@@ -237,6 +237,7 @@ rather than variables with new bindings."
   `(clel:macrolet ,@(rest (macroexpand-1 `(excl:flet ,definitions ,@body) env))))
 
 (defmacro excl:symbol-macrolet (macrobindings &body body &environment env)
+  (declare (ignore env))
   (multiple-value-bind (rem-body decl) (a:parse-body body)
     (multiple-value-bind (extype-decl remaining-decls)
         (extype-declarations decl)
