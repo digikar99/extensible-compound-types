@@ -222,4 +222,6 @@
 (define-mutually-exclusive-types
   cons (null symbol) character single-float double-float complex function pathname
   (array simple-array)
-  (integer rational))
+  (integer rational)
+  structure-object
+  standard-object)
