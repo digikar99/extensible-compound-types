@@ -2,7 +2,7 @@
 
 ;; FIXME: These should not be valid as ATOMIC TYPE SPECIFIERS
 
-(define-compound-type (and :non-null nil) (o &rest type-specifiers)
+(define-compound-type (and :non-null nil :specializing nil) (o &rest type-specifiers)
   (every (lambda (type) (typep o type))
          type-specifiers))
 

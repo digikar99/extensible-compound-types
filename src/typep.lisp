@@ -61,9 +61,10 @@ NAME-SPEC can be either NAME or the list
     UPGRADED-CL-TYPE. However, if the NAME is a symbol in one of the packages
     *EXCLUDED-PACKAGES-FOR-CL-DEFTYPE*, then a CL:DEFTYPE is not created. This
     can be overriden by supplying the value of CL-TYPE.
-  If SPECIALIZING is non-NIL, then it is assumed any list form of the
-    type specifier is a SUBTYPE of the atom form. This holds for types such as
-    ARRAY, SIMPLE-ARRAY, INTEGER, but is violated for types such as OR, NOT, MEMBER.
+  If SPECIALIZING is non-NIL, then it is assumed that the NAME names a structure/class,
+    and that any list form of the type specifier is a SUBTYPE of the atom form.
+    This holds for types such as ARRAY, SIMPLE-ARRAY, INTEGER,
+    but is violated for types such as OR, NOT, MEMBER.
     If SPECIALIZING is NIL, then it is also implicitly assumed that only the list
     form of the type specifier is valid and its atomic form is invalid.
 
