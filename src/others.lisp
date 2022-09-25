@@ -312,20 +312,27 @@ TODO: Improve documentation for this."
          (type2 (typexpand type2 env))
          (atom1p  (atom type1))
          (atom2p  (atom type2))
+         (type1-name (if atom1p
+                         type1
+                         (car type1)))
+         (type2-name (if atom2p
+                         type2
+                         (car type2)))
          (class1p (and atom1p (find-class type1 nil env)))
          (class2p (and atom2p (find-class type2 nil env))))
     (cond ((and class1p class2p)
            (multiple-value-bind (intersection-null-p knownp)
                (cl:subtypep `(and ,type1 ,type2) nil env)
              (values (not intersection-null-p) knownp)))
+          ((or (and (specializing-type-name-p type1-name)
+                    atom2p)
+               (and (specializing-type-name-p type2-name)
+                    atom1p))
+           (multiple-value-bind (intersection-null-p knownp)
+               (cl:subtypep `(and ,type1-name ,type2-name) nil env)
+             (values (not intersection-null-p) knownp)))
           (t
-           (let* ((type1-name (if atom1p
-                                  type1
-                                  (car type1)))
-                  (type2-name (if atom2p
-                                  type2
-                                  (car type2)))
-                  (type1 (if (and (specializing-type-name-p type1-name)
+           (let* ((type1 (if (and (specializing-type-name-p type1-name)
                                   (listp type1)
                                   (loop :for arg :in (rest type1)
                                         :always (eq 'cl:* arg)))
