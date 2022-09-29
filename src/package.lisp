@@ -263,34 +263,35 @@ also adds a CL:DEFTYPE with the expansion being determined by UPGRADED-CL-TYPE"
      (setf (type-expander ',name) nil)))
 
 (defun type-specifier-p (object &optional env)
-  (typecase object
-    (symbol
-     (let* ((classp   (find-class object nil env))
-            (expander (type-expander object nil)))
-       (or classp
-           (cond ((and expander
-                       (specializing-type-name-p object))
-                  t)
-                 ((and expander
-                       (not (specializing-type-name-p object)))
-                  nil)
-                 (t
-                  nil)))))
-    (list
-     (let* ((type-name       (car object))
-            (name-parameters (type-name-parameters type-name nil))
-            (num-required    (if (listp name-parameters)
-                                 (loop :for i :from 0
-                                       :for parameter :in (rest name-parameters)
-                                       :if (member parameter lambda-list-keywords)
-                                         :do (return i)
-                                       :finally (return i))
-                                 0))
-            (num-supplied    (etypecase object
-                               (atom 0)
-                               (list (1- (length object))))))
-       (and (type-expander type-name nil)
-            (<= num-required num-supplied))))))
+  (let ((object (typexpand object env)))
+    (typecase object
+      (symbol
+       (let* ((classp   (find-class object nil env))
+              (expander (type-expander object nil)))
+         (or classp
+             (cond ((and expander
+                         (specializing-type-name-p object))
+                    t)
+                   ((and expander
+                         (not (specializing-type-name-p object)))
+                    nil)
+                   (t
+                    nil)))))
+      (list
+       (let* ((type-name       (car object))
+              (name-parameters (type-name-parameters type-name nil))
+              (num-required    (if (listp name-parameters)
+                                   (loop :for i :from 0
+                                         :for parameter :in (rest name-parameters)
+                                         :if (member parameter lambda-list-keywords)
+                                           :do (return i)
+                                         :finally (return i))
+                                   0))
+              (num-supplied    (etypecase object
+                                 (atom 0)
+                                 (list (1- (length object))))))
+         (and (type-expander type-name nil)
+              (<= num-required num-supplied)))))))
 
 (defun typexpand-1 (type &optional env)
   "Returns two values: EXPANSION and EXPANDEDP"
