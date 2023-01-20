@@ -9,7 +9,7 @@
   :version "0.0.0" ; alpha
   :license "MIT"
   :serial t
-  :pathname #p"cl/"
+  :pathname #p"src/cl/"
   :components ((:file "package")
                (:file "special-forms")
                (:file "macros")
@@ -21,6 +21,6 @@
                "extensible-compound-types-cl"
                "fiveam"
                "polymorphic-functions")
-  :pathname #p"cl/"
+  :pathname #p"src/cl/"
   :components ((:file "specializable-structs")))
 

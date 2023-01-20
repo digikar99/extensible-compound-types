@@ -1,501 +1,85 @@
 
-* Motivation
+* Previous Version
 
-#+BEGIN_QUOTE
-=extensible-compound-types= allows for the definition of user-defined [[http://www.lispworks.com/documentation/lw70/CLHS/Body/26_glo_c.htm#compound_type_specifier][compound-types]]. Built-in compound types include =(vector &optional element-type)= or =(integer &optional lower-limit higher-limit)=. I do not know what exactly parametric types are, but I do know that these are not identical to parametric types. If it works for you, great! But don't say "it works" until you get things working on a large enough project.
+See the tag [[https://github.com/digikar99/extensible-compound-types/releases/tag/2022.09/][2022.09]].
 
-This is an alpha-stage experimental library. Use at your own risk.
-#+END_QUOTE
+* Continuing Motivation
 
-Common Lisp has a rich (although not the richest :/) type system allowing for the combination of types using NOT AND OR MEMBER VALUES, specifying EQL types, or even completely arbitrary types using SATISFIES. 
+After a maintainably-failed attempt at a previous version of extensible-compound-types, and some learnt lessons, here is the second attempt for extensible-compound-types.
 
-Through [[http://www.lispworks.com/documentation/lw70/CLHS/Body/26_glo_c.htm#compound_type_specifier][compound-types]], it even allows for specification of the exact integer or float through (NUM-TYPE LOW HIGH), or the exact dimensions of a vector or array through (ARRAY-TYPE ELEMENT-TYPE RANK/DIMENSIONS). This allows compilers to type-check and optimize the code, besides also enhancing readability for the developer reading the code. 
+The primary motivation for this library has been to provide a way to express a =(custom-array element-type dimensions/rank)= just like these can be expressed for the built-in type =cl:array=. The more general version of these types are what CLHS calls [[http://clhs.lisp.se/Body/01_ddfa.htm][Compound Types]].
 
-However, CLHS does not provide facilities for cleanly defining user-defined compound-types. Such types could include a (EQUALP OBJECT) type, a (TYPE= TYPE), or a (PAIR TYPE-1 TYPE-2) type, or (CUSTOM-ARRAY ELEMENT-TYPE DIMENSIONS).
+However, for a good subtypep, this requires defining subtypep (as well as intersect-type-p) relations for /every pair/ of primitive types. In other words, the number of subtypep and intersect-type-p methods required for a good subtypep grows quadratically with the number of primitive types, and this becomes unmaintainable quickly.
 
-While it might seem like [[http://clhs.lisp.se/Body/m_deftp.htm][CL:DEFTYPE]] allows for the definition of compound types, these types are what CLHS calls [[http://clhs.lisp.se/Body/26_glo_d.htm#derived_type][derived type]] specifiers, mere abbreviations and simple combinations of existing types. The most one can do is play around with SATISFIES types. However, not only do SATISFIES types not integrate well into rest of the type system, but they are also restricted to single argument functions that only take the object to be type-checked as their argument and no more parameters or arguments than that. See the [[#example-code][Example Code]] for an example of a type that is non-trivial (if not impossible!) to define using CL:DEFTYPE.
+However, several observations help in managing the complexity:
 
-Recommended usage is:
+1. The first is noting that for several types, each type parameter specializes independently - or orthogonally - of the other type parameters. For example, in (cl:array element-type dim/rank), the element-type parameter specializes independently of the dim/rank parameter. Not all types follow this convention, in (integer low high), low and high are not independent of each other. In the current version, such types are defined in terms of a single primitive compound type =specializing=. Thus, the user only needs to define the type's "slots" using =define-orthogonally-specializing-type= and no longer needs to define the subtypep and intersect-type-p for such types. Examples of these types include =%array complex cons %symbol %char= in [[./src/basic-types/cl-compound-types.lisp][src/basic-types/cl-compound-types.lisp]].
 
-#+BEGIN_SRC lisp
-(cl:pushnew :extensible-compound-types cl:*features*)
-(ql:quickload "extensible-compound-types-cl")
-(defpackage your-package (:use :extensible-compound-types-cl))
-#+END_SRC
+2. Even in cases when orthogonal specialization is not possible, it is possible to play nice with subtypep by using the class hierarchy. We note that these types are always associated with a class. Examples of such types include =integer single-float double-float rational= in [[./src/basic-types/cl-compound-types.lisp][src/basic-types/cl-compound-types.lisp]]. Such types require defining subtypep and intersect-type-p relations, but only /within/ the same types. It is reasonably doable to infer the subtypep or intersect-type-p relations with other types without additional effort. While earlier, this observation was incorporated into the subtypep and intersect-type-p functions at the top level itself, in this attempt of extensible-compound-types, these are better abstracted out through the =define-specializing-type=.
 
-Libraries that provide extensible-compound-types compatible versions:
+** Comparison with Hindley-Milner and/or Coalton Data Types
 
-- [[https://github.com/digikar99/polymorphic-functions/][polymorphic-functions]]
-- [[https://github.com/digikar99/trivial-coerce][trivial-coerce]]
-- [[https://github.com/digikar99/dense-arrays][dense-arrays]]
-- [[https://github.com/digikar99/numericals][numericals]]
-- [[https://github.com/alex-gutev/cl-form-types/][cl-form-types]] ([[https://github.com/digikar99/cl-form-types/][my fork]])
+Coalton provides full type inference through the well-developed theory of the Hindley-Milner type system; however, HM does not allow one to express types that depend on values. And while it is possible to express /some/ dependent types through HM, this is not possible in the general case. In essence, expressing =(float -1.0 1.0)= or =(integer 0 255)= is possible in Common Lisp Type System, but not in Hindley-Milner Type System.
 
-The end goal is indeed that extensible-compound-types-cl should be useable as a drop-in without special modifications, but the above projects have been explicitly tested.
+In the general case, I'd love to be able to express parametric dependent types that also play nice with Common Lisp's subtyping system. subtyping is important in order to express relations like "upper-triangular-array is a subtype of array", which can enable better specialization dispatch in a numerical computing library.
 
-** extensible-compound-types-cl: yet another shadowing CL package
+** Dependent Types, Common Lisp Types, The Ugly Parts
 
-=extensible-compound-types= allow for the definition of user-defined compound types. Unfortunately, this requires shadowing the symbols in the CL package. We start out with a user-defined declaration (CLTL2) EXTYPE or EXTENSIBLE-COMPOUND-TYPES:TYPE. However, to actually use the compiler's built-in type safety and optimization, one needs to modify the CL:TYPE declarations, but while doing so:
+In its current state, =extensible-compound-types= is far from a proper dependently typed system. However, even if a proper dependently typed system is developed, one has to do the ugly work of bridging it with the builtin Common Lisp types, especially =and or not eql satisfies=, and indeed, the ugliest parts of extensible-compound-types reside in [[src/basic-types/compound-only-subtypep.lisp][src/basic-types/compound-only-subtypep.lisp]] and [[src/basic-types/compound-only-intersect-type-p.lisp][src/basic-types/compound-only-intersect-type-p.lisp]]. Thus, any proper dependently typed system that integrates well into the Common Lisp type system has to deal with these ugly parts.
 
-#+BEGIN_QUOTE
-The consequences are undefined if decl-name is a symbol that can appear as the car of any standard declaration specifier.
+Coupled with [[https://github.com/alex-gutev/cl-form-types/][cl-form-types]] and closer-mop:funcallable-standard-class, =extensible-compound-types= does seem to be more general than a proper dependently typed system. In other words, the task of converting extensible-compound-types to a proper dependently typed system lies in /constraining it correctly/. 
 
-The consequences are also undefined if the return value from a declaration handler defined with define-declaration includes a key name that is used by the corresponding accessor to return information about any standard declaration specifier. (For example, if the first return value from the handler is :variable, the second return value may not use the symbols dynamic-extent, ignore, or type as key names.)
+** Function Types
 
--- [[https://www.cs.cmu.edu/Groups/AI/html/cltl/clm/node102.html][8.5 Environments, Common Lisp the Language, 2nd Edition]]
-#+END_QUOTE
+Currently, extensible-compound-types does not provide any additional support for parametric functions beyond what the builtin type system provides. Doing so involves at the least two pieces of work:
 
-[[https://github.com/numcl/specialized-function][gtype]] does expect that implementations will do the right thing with CL:TYPE being passed as the return values of user defined declarations. However, we do not rely on the implementation for this activity. A second reason for not relying on implementation support is that one needs to convert the declarations into a type-check statement for purposes of correctness. These type checks are beyond the scope of CL:TYPE declarations. 
+1. subclassing closer-mop:funcallable-standard-class to create a function class that stores the types of its instances. Common Lisp builtin function objects provide no facility for storing their types within them.
 
-Towards this, a =extensible-compound-types-cl= system and package is also provided that shadows symbols that incorporate declarations. The goal is to make this system so that it can be used as a drop-in for COMMON-LISP package - or at least with minimal modifications such as qualifying symbols with =CL:= prefix where necessary. If you want to use it, and it doesn't work as a drop-in, feel free to raise an [[https://github.com/digikar99/extensible-compound-types/issues][issue]]!
+2. Thinking about what a good or useful subtypep or intersect-type-p relation might look like.
 
-** #+EXTENSIBLE-COMPOUND-TYPES
+To actually support parametric polymorphism and dependent types will require even more work.
 
-If CL:*FEATURES* contains :EXTENSIBLE-COMPOUND-TYPES, then we also shadow CL:TYPE itself using EXTENSIBLE-COMPOUND-TYPES:TYPE. Otherwise, one needs to use EXTENSIBLE-COMPOUND-TYPES:EXTYPE. The goal for doing this is to allow for both side-by-side usage, as well as a complete replacement. FIXME: Flexible usage is problematic, also depends on what choices the systems that depend on extensible-compound-types make.
+* Usage
 
-* Contents
-:PROPERTIES:
-:TOC:      :include all
-:END:
+=:use= the =extensible-compound-types-cl= package after loading the system with the same name.
 
-:CONTENTS:
-- [[#motivation][Motivation]]
-  - [[#extensible-compound-types-cl-yet-another-shadowing-cl-package][extensible-compound-types-cl: yet another shadowing CL package]]
-  - [[#extensible-compound-types][#+EXTENSIBLE-COMPOUND-TYPES]]
-- [[#contents][Contents]]
-- [[#example-code][Example Code]]
-- [[#limitations-and-caveats][Limitations and Caveats]]
-- [[#core-api-for-using-as-a-shadowing-package][Core API for using as a shadowing package]]
-- [[#additional-tools][Additional tools]]
-- [[#extensible-compound-types-api][Extensible Compound Types API]]
-- [[#parametric-types][Parametric Types]]
-- [[#using-cl-form-types-for-better-compile-time-checks][Using cl-form-types for better compile-time checks]]
-- [[#needs-more-work][Needs more work]]
-- [[#internal-discussion][Internal Discussion]]
-  - [[#usage-api][Usage API]]
-  - [[#shadowing-cl-package][Shadowing CL package]]
-  - [[#subtypep][subtypep]]
-    - [[#if-two-types-are-such-that-one-type-has-a-greater-number-of-specified-parameters-than-another-then-should-that-mean-first-is-more-specialized-than-second][If two types are such that one type has a greater number of specified parameters than another, then should that mean first is more specialized than second?]]
-    - [[#what-should-the-relations-between-two-compound-types-corresponding-to-subclass-and-superclass][What should the relations between two compound types corresponding to subclass and superclass?]]
-  - [[#only-specialized-types-or-more-general-compound-types-like-type-type][Only specialized types, or more general compound types like (type= type)?]]
-  - [[#comparison-with-cl-parametric-types][Comparison with cl-parametric-types]]
-  - [[#comparison-with-ctype][Comparison with ctype]]
-  - [[#comments-by-more-experienced-lispers][Comments by more experienced lispers]]
-:END:
+* Examples
 
-* Example Code
+Much of the code in [[src/basic-types][src/basic-types]] can be used as the starting point. A bird's eye view goes as follows.
 
-Compound Types can be defined by first defining the =typep= part using =define-compound-type=.
+If you want to express types as something that "specializes" a class, just like how the builtin type =(cl:array element-type dim/rank)= specializes the class =array=, then try to use the =define-orthogonally-specializing-type= macro. This enables the type to play nice with respect to subtypep and intersect-type-p without any additional work on your part. However, if =define-orthogonally-specializing-type= becomes insufficient for your needs, then try using the =define-specializing-type= macro. This will require you to define =subtypep= and =intersect-type-p= relations for your types. Examples of these can be found in [[./src/basic-types/cl-compound-types.lisp][src/basic-types/cl-compound-types.lisp]].
 
-To use this type in a =(declare (extype ...))= declaration, one also needs to define the ANSI CL counterpart of the closest supertype of the given by specializing the =%upgraded-cl-type= generic-function. To play nice with =subtypep=, one needs to specialize the =%subtypep= generic-function. 
+Both =define-orthogonally-specializing-type= and =define-specializing-type= are better than =define-compound-type=. The latter should only be used for the most generic types, and putting it to good use requires one to define subtypep and intersect-type-p methods for /all/ the rest of the primitive compound types. See the rest of the files in [[src/basic-types][src/basic-types]] for examples on this.
 
-#+BEGIN_SRC lisp
-  (defpackage extensible-compound-types-demo
-    (:use :extensible-compound-types-cl))
+TODO: Add examples on this page itself.
 
-  (in-package :extensible-compound-types-demo)
+* API
 
-  ;;; PS: This isn't the best way to achieve this; since to play nice
-  ;;; with SUBTYPEP, one will need to define quite a few %SUBTYPEP
-  ;;; methods.  A better way is left as an exercise for the reader.
-  ;;; Hint: Abstract out the "multiples" part from integer-multiples
-  ;;; single-float-multiplesrational-multiples etc.
-  (define-compound-type integer-multiples (object n)
-    "A user-defined compound-type that denotes integers that are multiples of N"
-    (and (numberp object)
-         (zerop (rem object n))))
+** Working with existing types
 
-  (typep 5 '(integer-multiples 3)) ;=> NIL
-  (typep 6 '(integer-multiples 3)) ;=> T
-
-  (cl:defmethod %upgraded-cl-type ((name (eql 'integer-multiples)) type &optional env)
-    (declare (ignore name env))
-    'integer)
-
-  #|
-  (disassemble (lambda (x)
-                 (declare (optimize speed)
-                          (extype (integer-multiples 3) x))
-                 x))
-  ; disassembly for (COMMON-LISP:LAMBDA (X) :IN "/tmp/slime4RHup6")
-  ; Size: 8 bytes. Origin: #x53AC4830                           ; (COMMON-LISP:LAMBDA
-                                                                      (X)
-                                                                    :IN
-                                                                    "/tmp/slime4RHup6")
-  ; 0:       488BE5           MOV RSP, RBP
-  ; 3:       F8               CLC
-  ; 4:       5D               POP RBP
-  ; 5:       C3               RET
-  ; 6:       CC10             INT3 16                           ; Invalid argument count trap
-
-  (describe 'integer-multiples)
-  EXTENSIBLE-COMPOUND-TYPES-DEMO::INTEGER-MULTIPLES
-    [symbol]
-
-  INTEGER-MULTIPLES is bound in namespace TYPE:
-    Value: (N)
-    Documentation:
-      A user-defined compound-type that denotes integers that are multiples of N
-  |#
-  ;; TODO: Add SUBTYPEP example
-#+END_SRC
-
-More examples for this can be found in the [[file:src/cl-compound-types.lisp][src/cl-compound-types.lisp]].
-
-* Limitations and Caveats
-
-- It doesn't give you truly parametric types in the sense of ML-like languages; the most you can get is one level of parametric-ism
-- Getting %subtypep and %intersect-type-p working correctly for non-trivial types can be difficult if not impossible. For instance, consider the case of character-designator: one could certainly define it as:
-
-#+BEGIN_SRC lisp
-(define-compound-type character-designator (o)
-  (or (characterp o)
-      (and (stringp o)
-           (= 1 (length o)))
-      (and (symbolp o)
-           (= 1 (length (symbol-name o))))))
-#+END_SRC
-
-  However, now, getting all and more of the following to hold seems non-trivial:
-
-#+BEGIN_SRC lisp
-(subtypep 'character-designator 'character) ;=> NIL T, because it can also be a symbol
-(subtypep 'character-designator 'symbol) ;=> NIL T
-(subtypep 'character-designator 'string) ;=> NIL T
-(subtypep 'character-designator '(or character symbol string)) ;=> T T
-(subtypep 'character 'character-designator) ;=> T T
-(subtypep '(or character string) 'character-designator) ;=> NIL T
-(subtypep '(or character (string 1)) 'character-designator) ;=> T T
-#+END_SRC
-
-  That is why, =define-compound-type= should be used only as a last resort when =deftype= does not let you do what you want.
-
-- extensible-compound-types is also not infinitely powerful. In an attempt to keep the API simpler (compared to CTYPE), no explicit methods have been provided for conjunction and disjunction. One of the implications of this is that it is not always possible to tell whether or not (and ...) is NIL or not, for instance =(subtypep '(and listp (not null) symbol) nil) ;=> NIL NIL=.
-
-  To understand this, consider that I have three types t1, t2, t3 denoting the set of elements (a b c), (c d e), (e f a) respectively. In actuality, the programming language won't allow us to literally list the elements a b c d e f etc, but I'm assuming this literal listing for purposes of understanding.
-
-  Now, I want to check for (subtypep '(and t1 t2 t3) nil) in a way that will allow extending the algorithm to beyond 2 or 3 types; so, the algorithm should work even when there is a t4 or t5. The current approach reduces the 3-types case to whether the intersection of any two of these is null. However, this is incomplete, since as in the example above, it is possible that even if any two of these have a non-nil intersection, all the three (or more) of them taken together have a nil intersection.
-
-  SBCL and CTYPE handle this this by reducing (and list (not null)) to cons; but that involves the implementation of disjunction and conjunctions for *every* pair of (user-defined) primitive types. And I want to avoid this since this seems to complicate the API quite a bit. PS: I'd be glad to know if there is a better way out!
-  
-* Core API for using as a shadowing package
-
-- type-specifier-p
-- typep
-- subtypep
+- typep, subtypep, intersect-type-p, supertypep
+- upgraded-cl-type
 - deftype
-- check-type
-- the
-- unknown-type-specifier
-- =*excluded-packages-for-cl-deftype*=
-
-* Additional tools
-
-- undeftype
-- typexpand-1
-- typexpand
-- typexpand-all
-- type=
-- supertypep
-- intersect-type-p
+- type-specifier-p
+- typexpand, typexpand-1
 - intersection-null-p
-- =*the-skip-predicates*=
+- the
+- check-type
 
-* Extensible Compound Types API
+** Defining new types
 
+- define-orthogonally-specializing-type
+- define-specializing-type
 - define-compound-type
-- undefine-compound-type
-- %upgraded-cl-type
-- %subtypep
-- %intersect-type-p
+
+- define-subtypep-lambda
+- define-intersect-type-p-lambda
+
+- define-cl-type-for-extype
+
+** Other shadowed symbols
+
+- type
 - extype
-
-* Parametric Types
-
-Combined with [[https://github.com/digikar99/polymorphic-functions/][polymorphic-functions]], one /can/ create a wrapper around =extensible-compound-types= as follows. Note that this does not give you truly parametric types in the sense of ML-like languages. Instead, this is more akin to C++ templates, but without the overhead of one class definition per specialization. And in this manner, it also differs from [[https://github.com/cosmos72/cl-parametric-types][cl-parametric-types]]. 
-
-C++ and cl-parametric-types create a class, structure, or function for /every/ combination of the type parameters. As a result, that approach is unsuitable for common lisp types such as =(string /length/)= or =(array * dimensions/rank)=.
-
-"extensible-compound-types-cl/specializable-structs" provides a =define-specializable-struct= to define a structure along with the additional tools to define and optimize a compound-type allowing the specification of slot types. However, if extensible-compound-types is alpha, then this system and package is pre-alpha! Experiment at your own risk, avoid use in production.
-
-
-#+BEGIN_SRC lisp
-(push :extensible-compound-types cl:*features*)
-(ql:quickload "extensible-compound-types-cl/specializable-structs")
-
-(cl:defpackage parametric-types-demo
-  (:use :extensible-compound-types-cl :polymorphic-functions
-        :extensible-compound-types-cl/specializable-structs))
-
-(in-package :parametric-types-demo)
-
-(define-specializable-struct pair a b)
-
-(disassemble (lambda (o)
-               (declare (extype (pair fixnum fixnum) o)
-                        (optimize speed))
-               (cl:+ (pair-a o)
-                     (pair-b o))))
-;=> On SBCL: contains a call to GENERIC-+
-; Size: 28 bytes. Origin: #x53ACFD74                          ; (COMMON-LISP:LAMBDA
-;                                                                   (O))
-; 74:       488B4205         MOV RAX, [RDX+5]
-; 78:       488B7A0D         MOV RDI, [RDX+13]
-; 7C:       488BD0           MOV RDX, RAX
-; 7F:       FF1425F000A052   CALL QWORD PTR [#x52A000F0]      ; GENERIC-+
-; 86:       488BE5           MOV RSP, RBP
-; 89:       F8               CLC
-; 8A:       5D               POP RBP
-; 8B:       C3               RET
-; 8C:       CC10             INT3 16                          ; Invalid argument count trap
-; 8E:       CC10             INT3 16                          ; Invalid argument count trap
-
-(disassemble (lambda (o)
-               (declare (extype (pair fixnum fixnum) o)
-                        (optimize speed))
-               (cl:+ (slot-a o)
-                     (slot-b o))))
-;=> On SBCL: direct addition, without a call to GENRIC-+
-; Size: 61 bytes. Origin: #x53ACFC34                          ; (COMMON-LISP:LAMBDA
-;                                                                   (O))
-; 34:       488B4A05         MOV RCX, [RDX+5]
-; 38:       F6C101           TEST CL, 1
-; 3B:       752D             JNE L2
-; 3D:       48D1F9           SAR RCX, 1
-; 40:       488B520D         MOV RDX, [RDX+13]
-; 44:       F6C201           TEST DL, 1
-; 47:       751E             JNE L1
-; 49:       48D1FA           SAR RDX, 1
-; 4C:       4801D1           ADD RCX, RDX
-; 4F:       48D1E1           SHL RCX, 1
-; 52:       710A             JNO L0
-; 54:       48D1D9           RCR RCX, 1
-; 57:       FF14254801A052   CALL QWORD PTR [#x52A00148]      ; ALLOC-SIGNED-BIGNUM-IN-RCX
-; 5E: L0:   488BD1           MOV RDX, RCX
-; 61:       488BE5           MOV RSP, RBP
-; 64:       F8               CLC
-; 65:       5D               POP RBP
-; 66:       C3               RET
-; 67: L1:   CC4F             INT3 79                          ; OBJECT-NOT-FIXNUM-ERROR
-; 69:       08               BYTE #X08                        ; RDX(d)
-; 6A: L2:   CC4F             INT3 79                          ; OBJECT-NOT-FIXNUM-ERROR
-; 6C:       04               BYTE #X04                        ; RCX(d)
-; 6D:       CC10             INT3 16                          ; Invalid argument count trap
-; 6F:       CC10             INT3 16                          ; Invalid argument count trap
-
-(disassemble (lambda (o)
-               (declare (extype (pair single-float single-float) o)
-                        (optimize speed))
-               (cl:+ (slot-a o)
-                     (slot-b o))))
-;=> On SBCL: direct addition, without a call to GENRIC-+
-; Size: 65 bytes. Origin: #x53ACFAE4                          ; (COMMON-LISP:LAMBDA
-;                                                                   (O))
-; AE4:       488B4205         MOV RAX, [RDX+5]
-; AE8:       3C19             CMP AL, 25
-; AEA:       7532             JNE L1
-; AEC:       66480F6EC8       MOVQ XMM1, RAX
-; AF1:       0FC6C9FD         SHUFPS XMM1, XMM1, #4r3331
-; AF5:       488B420D         MOV RAX, [RDX+13]
-; AF9:       3C19             CMP AL, 25
-; AFB:       751E             JNE L0
-; AFD:       66480F6ED0       MOVQ XMM2, RAX
-; B02:       0FC6D2FD         SHUFPS XMM2, XMM2, #4r3331
-; B06:       F30F58D1         ADDSS XMM2, XMM1
-; B0A:       660F7ED2         MOVD EDX, XMM2
-; B0E:       48C1E220         SHL RDX, 32
-; B12:       80CA19           OR DL, 25
-; B15:       488BE5           MOV RSP, RBP
-; B18:       F8               CLC
-; B19:       5D               POP RBP
-; B1A:       C3               RET
-; B1B: L0:   CC4C             INT3 76                         ; OBJECT-NOT-SINGLE-FLOAT-ERROR
-; B1D:       00               BYTE #X00                       ; RAX(d)
-; B1E: L1:   CC4C             INT3 76                         ; OBJECT-NOT-SINGLE-FLOAT-ERROR
-; B20:       00               BYTE #X00                       ; RAX(d)
-; B21:       CC10             INT3 16                         ; Invalid argument count trap
-; B23:       CC10             INT3 16                         ; Invalid argument count trap
-
-(define-polymorphic-function add-pair (a b) :overwrite t)
-(defpolymorph add-pair ((a (pair <a> <b>)) (b (pair <a> <b>))) (pair <a> <b>)
-  (make-pair :a
-             (cl:+ (slot-a a)
-                   (slot-a b))
-             :b
-             (cl:+ (slot-b a)
-                   (slot-b b))))
-
-(disassemble (lambda (x y)
-               (declare (optimize speed)
-                        (type (pair single-float double-float) x y))
-               (add-pair x y)))
-; Size: 219 bytes. Origin: #x53679E8F                         ; (COMMON-LISP:LAMBDA
-;                                                                   (X Y))
-; E8F:       488B4205         MOV RAX, [RDX+5]
-; E93:       3C19             CMP AL, 25
-; E95:       0F85B5000000     JNE L7
-; E9B:       66480F6EC8       MOVQ XMM1, RAX
-; EA0:       0FC6C9FD         SHUFPS XMM1, XMM1, #4r3331
-; EA4:       488B4705         MOV RAX, [RDI+5]
-; EA8:       3C19             CMP AL, 25
-; EAA:       0F859D000000     JNE L6
-; EB0:       66480F6ED8       MOVQ XMM3, RAX
-; EB5:       0FC6DBFD         SHUFPS XMM3, XMM3, #4r3331
-; EB9:       F30F58D9         ADDSS XMM3, XMM1
-; EBD:       488B4A0D         MOV RCX, [RDX+13]
-; EC1:       488D41F1         LEA RAX, [RCX-15]
-; EC5:       A80F             TEST AL, 15
-; EC7:       7503             JNE L0
-; EC9:       80381D           CMP BYTE PTR [RAX], 29
-; ECC: L0:   757C             JNE L5
-; ECE:       F20F1049F9       MOVSD XMM1, [RCX-7]
-; ED3:       488B4F0D         MOV RCX, [RDI+13]
-; ED7:       488D41F1         LEA RAX, [RCX-15]
-; EDB:       A80F             TEST AL, 15
-; EDD:       7503             JNE L1
-; EDF:       80381D           CMP BYTE PTR [RAX], 29
-; EE2: L1:   7563             JNE L4
-; EE4:       F20F1051F9       MOVSD XMM2, [RCX-7]
-; EE9:       F20F58D1         ADDSD XMM2, XMM1
-; EED:       BADFEE2250       MOV EDX, #x5022EEDF             ; ':A
-; EF2:       660F7EDF         MOVD EDI, XMM3
-; EF6:       48C1E720         SHL RDI, 32
-; EFA:       4080CF19         OR DIL, 25
-; EFE:       BE3FEC2250       MOV ESI, #x5022EC3F             ; ':B
-; F03:       4D896D28         MOV [R13+40], R13               ; thread.pseudo-atomic-bits
-; F07:       498B4570         MOV RAX, [R13+112]              ; thread.mixed-tlab
-; F0B:       4883C010         ADD RAX, 16
-; F0F:       493B4578         CMP RAX, [R13+120]
-; F13:       7749             JNBE L9
-; F15:       49894570         MOV [R13+112], RAX              ; thread.mixed-tlab
-; F19:       4883C0FF         ADD RAX, -1
-; F1D: L2:   66C740F11D01     MOV WORD PTR [RAX-15], 285
-; F23:       4D316D28         XOR [R13+40], R13               ; thread.pseudo-atomic-bits
-; F27:       7402             JEQ L3
-; F29:       CC09             INT3 9                          ; pending interrupt trap
-; F2B: L3:   F20F1150F9       MOVSD [RAX-7], XMM2
-; F30:       488945F0         MOV [RBP-16], RAX
-; F34:       488B5DF0         MOV RBX, [RBP-16]
-; F38:       B908000000       MOV ECX, 8
-; F3D:       FF7508           PUSH QWORD PTR [RBP+8]
-; F40:       B862AC4850       MOV EAX, #x5048AC62             ; #<FDEFN MAKE-PAIR>
-; F45:       FFE0             JMP RAX
-; F47: L4:   CC50             INT3 80                         ; OBJECT-NOT-DOUBLE-FLOAT-ERROR
-; F49:       04               BYTE #X04                       ; RCX(d)
-; F4A: L5:   CC50             INT3 80                         ; OBJECT-NOT-DOUBLE-FLOAT-ERROR
-; F4C:       04               BYTE #X04                       ; RCX(d)
-; F4D: L6:   CC4F             INT3 79                         ; OBJECT-NOT-SINGLE-FLOAT-ERROR
-; F4F:       00               BYTE #X00                       ; RAX(d)
-; F50: L7:   CC4F             INT3 79                         ; OBJECT-NOT-SINGLE-FLOAT-ERROR
-; F52:       00               BYTE #X00                       ; RAX(d)
-; F53: L8:   FF24256800A052   JMP QWORD PTR [#x52A00068]      ; SB-VM::ALLOC-TRAMP
-; F5A:       CC10             INT3 16                         ; Invalid argument count trap
-; F5C:       CC10             INT3 16                         ; Invalid argument count trap
-; F5E: L9:   6A10             PUSH 16
-; F60:       E8EEFFFFFF       CALL L8
-; F65:       58               POP RAX
-; F66:       0C0F             OR AL, 15
-; F68:       EBB3             JMP L2
-#+END_SRC
-
-* Using cl-form-types for better compile-time checks
-
-cl-form-types can also be used to provide better compile time checks for the extended-types. TODO: Think about where to put this in, perhaps in cl-form-types?
-
-#+begin_src lisp
-(in-package :extensible-compound-types.impl)
-(defun cl-form-types-check (value-type form env)
-  (let ((form-type (cl-form-types:form-type form env)))
-    (when (and (member :sbcl cl:*features*)
-               (type= (upgraded-cl-type form-type env)
-                      form-type
-                      env)
-               (type= (upgraded-cl-type value-type env)
-                      value-type
-                      env))
-      (return-from cl-form-types-check t))
-    (multiple-value-bind (intersectp knownp)
-        (intersect-type-p form-type value-type env)
-      (when (and knownp (not intersectp) (not (type= form-type t)))
-        (warn "Type declarations for~%  ~S~%conflict:~%  ~S~%does not intersect with~%  ~S"
-              form form-type value-type)))
-    (multiple-value-bind (subtypep knownp)
-        (subtypep form-type value-type env)
-      (when (or (type= form-type t)
-                (and knownp subtypep))
-        (return-from cl-form-types-check t))))
-  ;; (let ((optimize-decl (declaration-information 'optimize env)))
-  ;;   (when (> (second (assoc 'speed optimize-decl))
-  ;;            (second (assoc 'safety optimize-decl)))
-  ;;     (return-from cl-form-types-check t)))
-  (let ((optimize-decl (declaration-information 'optimize env)))
-    (when (zerop (second (assoc 'safety optimize-decl)))
-      (return-from cl-form-types-check t))))
-(pushnew 'cl-form-types-check *the-skip-predicates*)
-#+end_src
-
-* TODO Needs more work 
-
-- typelet
-- typelet*
-- Specifying better predicates for =*the-skip-predicates*=
-
-- Creating a wrapper for CL:LOOP
-  
-* Internal Discussion
-
-** Usage API
-
-- cl-shadowing package: This should not do type-declaration-upgradation. This was an option earlier, because "why not". However, this cannot be done, because the part on type-declaration-upgradation can wreak havoc on user's expectations. For instance, below, one might expect =foo-caller= to compile successfully, but it does not:
-
-  #+BEGIN_SRC lisp
-    (define-polymorphic-function foo (a) :overwrite t)
-
-    (defpolymorph foo ((x number)) number
-      (setq x (coerce x 'single-float))
-      (cl:+ x x))
-
-    (defun foo-caller (b)
-      (declare (optimize speed)
-               (type fixnum b))
-      (foo b))
-  #+END_SRC
-
-** Shadowing CL package
-
-DEFAULT-THE-SKIP-PREDICATE
-
-- Call a function TYPE-SAFE, if its guaranteed that at runtime, its arguments are of the type given by the compile time declarations, as well as the return values are of the appropriate types declared at compile time.
-- Such TYPE-SAFE functions do not need a runtime type check, if its arguments are pre-tested to be of the appropriate types.
-- Functions made by composing type-safe functions are type-safe. That is they do not require type checks. /(What is composing?)/
-
-- Suppose we have a core set of type-safe functions. Then, functions that call these functions need not do any type checking of the return-values of the type-safe functions, if the declared return-types are a subtype of the caller's arguments parameter-type declarations.
-
-** subtypep
-
-*** If two types are such that one type has a greater number of specified parameters than another, then should that mean first is more specialized than second?
-
-No, because we also want to allow for types like ~(type= /type/)~.
-
-*** What should the relations between two compound types corresponding to subclass and superclass?
-
-Nothing. We are not implementing parametric types. We are implementing compound types.
-
-** Only specialized types, or more general compound types like ~(type= /type/)~?
-
-Allow for more general compound types.
-
-** Comparison with cl-parametric-types
-
-https://github.com/cosmos72/cl-parametric-types
-
-We allow for more general types like ~(type= /type/)~.
-
-** Comparison with ctype
-
-Faster =typep= due to avoidance of =specifier-type=. TODO: Measure
-
-** Comments by more experienced lispers
-
-- https://www.reddit.com/r/lisp/comments/qmrycl/comment/hjkn7qr/?utm_source=share&utm_medium=web2x&context=3
-  - stylewarning does say that PF (or derivatives?) is useful for describing concrete values, which is the primary goal of this library.
+- ftype
+- exftype

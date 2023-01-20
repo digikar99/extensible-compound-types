@@ -122,14 +122,11 @@ rather than variables with new bindings."
                      (if (symbolp binding)
                          (values binding nil)
                          (values-list binding))
-                   (unless (or (special-variable-p var env)
-                               (and (member :sbcl cl:*features*)
-                                    (symbol-package var)
-                                    (string= "SB"
-                                             (subseq (package-name (symbol-package var)) 0 2))))
-                     (let ((form-type (or (ignore-errors
-                                           (cl-form-types:nth-form-type form env 0 t t))
-                                          cl:t)))
+                   (unless
+                       #+sbcl (and (symbol-package var)
+                                   (sb-ext:package-locked-p (symbol-package var)))
+                       #-sbcl ()
+                     (let ((form-type (cl-form-types:nth-form-type form env 0 t t)))
                        (cond ((eq cl:t form-type)
                               ())
                              (t
@@ -160,14 +157,11 @@ rather than variables with new bindings."
                          (if (symbolp binding)
                              (values binding nil)
                              (values-list binding))
-                       (unless (or (special-variable-p var env)
-                                   (and (member :sbcl cl:*features*)
-                                        (symbol-package var)
-                                        (string= "SB"
-                                                 (subseq (package-name (symbol-package var)) 0 2))))
-                         (let ((form-type (or (ignore-errors
-                                               (cl-form-types:nth-form-type form form-type-env 0 t t))
-                                              cl:t)))
+                       (unless #+sbcl (and (symbol-package var)
+                                           (sb-ext:package-locked-p (symbol-package var)))
+                               #-sbcl ()
+                         (let ((form-type (cl-form-types:nth-form-type
+                                           form form-type-env 0 t t)))
                            (cond ((eq cl:t form-type)
                                   ())
                                  (t
