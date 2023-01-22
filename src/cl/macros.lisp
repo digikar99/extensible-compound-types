@@ -34,18 +34,33 @@
       `(clel:defmethod ,name ,(first args)
          ,@(nthcdr 2 (macroexpand-1 `(excl:defun ,name ,@(rest args)) env)))))
 
+(defmacro excl:defclass (name direct-superclasses &body (direct-slots &rest options))
+  `(progn
+     (cl:defclass ,name ,direct-superclasses ,direct-slots ,@options)
+     (ex:define-orthogonally-specializing-type ,name () ())))
+
 (defmacro excl:define-condition (name (&rest parent-types) (&rest slot-specs)
                                  &body options
                                  &environment env)
-  `(clel:define-condition ,name ,parent-types
-     ,slot-specs
-     ,@(let ((report-value (second (assoc :report options))))
-         (if (and (listp report-value)
-                  (member (first report-value) '(cl:lambda excl:lambda clel:lambda)))
-             (cons `(:report (cl:lambda
-                                 ,@(rest (macroexpand-1 `(excl:lambda ,@(rest report-value)) env))))
-                   (remove :report options :key #'first))
-             options))))
+  `(progn
+     (clel:define-condition ,name ,parent-types
+       ,slot-specs
+       ,@(let ((report-value (second (assoc :report options))))
+           (if (and (listp report-value)
+                    (member (first report-value) '(cl:lambda excl:lambda clel:lambda)))
+               (cons `(:report (cl:lambda
+                                   ,@(rest (macroexpand-1 `(excl:lambda ,@(rest report-value)) env))))
+                     (remove :report options :key #'first))
+               options)))
+     (ex:define-orthogonally-specializing-type ,name () ())))
+
+(defmacro excl:defstruct (name-and-options &body slot-descriptions)
+  `(progn
+     (cl:defstruct ,name-and-options ,@slot-descriptions)
+     (ex:define-orthogonally-specializing-type ,(etypecase name-and-options
+                                                  (atom name-and-options)
+                                                  (cons (first name-and-options)))
+         () ())))
 
 (defmacro excl:destructuring-bind (lambda-list expression &body body &environment env)
   (multiple-value-bind (rem-body decl) (a:parse-body body)

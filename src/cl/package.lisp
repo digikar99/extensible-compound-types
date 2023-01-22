@@ -96,7 +96,9 @@
    )
   (:shadow
    #:compile
-   #:augment-environment)
+   #:augment-environment
+   #:defstruct
+   #:defclass)
   )
 
 (defpackage :extensible-compound-types-cl.impl
