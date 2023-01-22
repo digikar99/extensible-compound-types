@@ -205,7 +205,7 @@
 (define-type vector (&optional (element-type 'cl:*) (size 'cl:*))
   `(array ,element-type (,size)))
 (define-type simple-vector (&optional (size 'cl:*))
-  `(simple-array t ,size))
+  `(simple-array t (,size)))
 
 (define-type string (&optional (size 'cl:*))
   ;; FIXME: See http://www.lispworks.com/documentation/lw70/CLHS/Body/t_string.htm#string
@@ -262,7 +262,13 @@
     (&optional (base-char-p 'cl:*))
   ((base-char-p :accessor (lambda (o) (cl:typep o 'base-char)))))
 
-(define-compound-type (standard-char :cl-type nil) (o) (cl:typep o 'standard-char))
+(define-type standard-char ()
+  `(member #\Newline #\  #\! #\" #\# #\$ #\% #\& #\' #\( #\) #\* #\+ #\, #\- #\. #\/ #\0
+           #\1 #\2 #\3 #\4 #\5 #\6 #\7 #\8 #\9 #\: #\; #\< #\= #\> #\? #\@ #\A #\B #\C
+           #\D #\E #\F #\G #\H #\I #\J #\K #\L #\M #\N #\O #\P #\Q #\R #\S #\T #\U #\V
+           #\W #\X #\Y #\Z #\[ #\\ #\] #\^ #\_ #\` #\a #\b #\c #\d #\e #\f #\g #\h #\i
+           #\j #\k #\l #\m #\n #\o #\p #\q #\r #\s #\t #\u #\v #\w #\x #\y #\z #\{ #\|
+           #\} #\~))
 ;; BASE-CHAR is the UPGRADED-ARRAY-ELEMENT-TYPE of STANDARD-CHAR
 ;; All the three compound-types for characters have implemented %SUBTYPEP
 ;; methods in subtypep.lisp
