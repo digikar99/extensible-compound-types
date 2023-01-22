@@ -30,12 +30,11 @@ Check-list for implementing a new compound type:
   - Implement a DEFINE-COMPOUND-TYPE
   - If CL-TYPE option was supplied as NIL, then optionally define an appropriate
     CL:DEFTYPE form.
-  - Compulsory: Implement a %UPGRADED-CL-TYPE method specializing on (EQL NAME)
+  - Compulsory: DEFINE-CL-TYPE-FOR-EXTYPE for NAME
     that returns a valid CL type specifier, with no ultimate dependency
     on EXTENSIBLE-COMPOUND-TYPES
   - Optional: Implement a DEFINE-COMPOUND-TYPE-COMPILER-MACRO for optimizing TYPEP
-  - Optional: Appropriate %SUBTYPEP methods and %INTERSECT-TYPE-P methods
-  - Optional: DEFINE-MUTUALLY-EXCLUSIVE-TYPES
+  - Optional: Appropriate DEFINE-SUBTYPEP-LAMBDA and DEFINE-INTERSECT-TYPE-P-LAMBDA
 
 The CL type specifiers are emitted for optimization purposes by
 EXTENSIBLE-COMPOUND-TYPES-CL and friends. Because the native CL compiler
@@ -43,19 +42,19 @@ understands these specifiers, no additional work needs to be done if these
 type specifiers are generated appropriately.
 
 Note: Whenever possible, it is recommended to use EXTENSIBLE-COMPOUND-TYPES:DEFTYPE
+  or EXTENSIBLE-COMPOUND-TYPES:DEFINE-SPECIALIZING-TYPE or even better
+  EXTENSIBLE-COMPOUND-TYPES:DEFINE-ORTHOGONALLY-SPECIALIZING-TYPE
   and only use EXTENSIBLE-COMPOUND-TYPES:DEFINE-COMPOUND-TYPE as a last resort.
-  Use of DEFINE-COMPOUND-TYPE also entails getting the %SUBTYPEP and %INTERSECT-TYPE-P
   methods correct.
 "
-  (destructuring-bind (name &key (specializing t) (cl-type t cl-type-p))
+  ;; FIXME: Do away with SPECIALIZING
+  (destructuring-bind (name &key (specializing t) (cl-type t))
       (ensure-list name-spec)
     (assert (not (member name '(extype type cl:type))) ()
-          "Illegal to define a type named ~S" name)
+            "Illegal to define a type named ~S" name)
     (multiple-value-bind (rem-body decl doc) (parse-body body :documentation t)
       `(with-eval-always
-         ,(when (if cl-type-p
-                    cl-type
-                    (not (member (symbol-package name) *excluded-packages-for-cl-deftype*)))
+         ,(when cl-type
             (with-gensyms (form)
               `(cl:deftype ,name (&whole ,form ,@lambda-list)
                  ,@(when doc `(,doc))

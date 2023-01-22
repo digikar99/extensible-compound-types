@@ -2,49 +2,52 @@
 
 (5am:in-suite  :extensible-compound-types)
 
-(defvar *excluded-packages-for-cl-deftype*
-  (mapcar #'find-package '(:cl :alexandria :trivial-types :sb-kernel))
-  "EXTENSIBLE-COMPOUND-TYPES:DEFTYPE avoids adding a CL:DEFTYPE if the NAME is
-a symbol in package excluded in this list.")
-(cl:declaim (type list *excluded-packages-for-cl-deftype*))
-
-(defmacro deftype (name lambda-list &body body &environment env)
+(defmacro define-type (name lambda-list &body body &environment env)
   "Useful for defining type aliases, example: (DEFTYPE INT32 () '(SIGNED-BYTE 32))
 
-Depending on the value of *EXCLUDED-PACKAGES-FOR-CL-DEFTYPE*,
-also adds a CL:DEFTYPE with the expansion being determined by UPGRADED-CL-TYPE"
+Use DEFTYPE if you would also like to define a CL type specifier corresponding
+to this NAME. Such a CL type specifier expands into the expansion returned
+by UPGRADED-CL-TYPE"
   (multiple-value-bind (rem-body decl doc) (parse-body body :documentation t)
+    `(with-eval-always
+       (setf (extype-structure ',name)
+             (make-derived-extype
+              :name ',name
+              :documentation ,doc
+              :arg-list ',lambda-list
+              :expander ,(parse-macro name
+                                      lambda-list
+                                      (append decl rem-body)
+                                      env)))
+       (namespace-value-and-doc-set
+        ',name
+        ',lambda-list
+        ,(if doc
+             (format nil
+                     "~A names a DERIVED-EXTYPE~%~A"
+                     name
+                     doc)
+             (format nil
+                     "~A names a DERIVED-EXTYPE~%"
+                     name))))))
 
+(defmacro deftype (name lambda-list &body body)
+  "Useful for defining type aliases, example: (DEFTYPE INT32 () '(SIGNED-BYTE 32))
+
+Also defines a CL type specifier corresponding
+to this NAME. Such a CL type specifier expands into the expansion returned
+by UPGRADED-CL-TYPE.
+
+Use DEFINE-TYPE if a CL type specifier should not be defined for NAME."
+  (multiple-value-bind (rem-body decl doc) (parse-body body :documentation t)
+    (declare (ignore rem-body decl))
     (with-gensyms (form)
       `(progn
-
-         ,(unless (member (symbol-package name) *excluded-packages-for-cl-deftype*)
-            `(cl:deftype ,name (&whole ,form ,@lambda-list)
-               ,@(when doc `(,doc))
-               ,(ignore-all-form-from-lambda-list lambda-list)
-               (upgraded-cl-type ,form)))
-
-         (with-eval-always
-           (setf (extype-structure ',name)
-                 (make-derived-extype
-                  :name ',name
-                  :documentation ,doc
-                  :arg-list ',lambda-list
-                  :expander ,(parse-macro name
-                                          lambda-list
-                                          (append decl rem-body)
-                                          env)))
-           (namespace-value-and-doc-set
-            ',name
-            ',lambda-list
-            ,(if doc
-                 (format nil
-                         "~A names a DERIVED-EXTYPE~%~A"
-                         name
-                         doc)
-                 (format nil
-                         "~A names a DERIVED-EXTYPE~%"
-                         name))))))))
+         (cl:deftype ,name (&whole ,form ,@lambda-list)
+           ,@(when doc `(,doc))
+           ,(ignore-all-form-from-lambda-list lambda-list)
+           (upgraded-cl-type ,form))
+         (define-type ,name ,lambda-list ,@body)))))
 
 ;;; TODO: Could introduce a TMAKUNBOUND
 (defmacro undeftype (name)

@@ -2,13 +2,13 @@
 
 (5am:in-suite :extensible-compound-types)
 
-(deftype trivial-types:string-designator () `(or character string symbol))
-(deftype alexandria:string-designator () `(or character string symbol))
+(define-type trivial-types:string-designator () `(or character string symbol))
+(define-type alexandria:string-designator () `(or character string symbol))
 
 (defun character-designator-p (object)
   (and (typep object 'alexandria:string-designator)
        (= 1 (length (string object)))))
-(deftype character-designator ()
+(define-type character-designator ()
   `(or character
        (string 1)
        (and symbol (satisfies character-designator-p))))
@@ -21,7 +21,7 @@
            (eq 'setf (first object))
            (second object)
            (null (cddr object)))))
-(deftype trivial-types:function-designator ()
+(define-type trivial-types:function-designator ()
   `(or symbol
        function
        (and list (satisfies function-designator-p))))

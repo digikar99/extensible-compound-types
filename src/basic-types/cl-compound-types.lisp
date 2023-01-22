@@ -1,12 +1,12 @@
 (in-package :extensible-compound-types.impl)
 
-(deftype null () `(eql nil))
+(define-type null () `(eql nil))
 ;; FIXME: Remove references to NULL
 
 (macrolet ((def (type)
              `(progn
                 ;; It is slower to CONS up lists and then pass them to CL:TYPEP
-                ;; (deftype ,type (&optional (lower-limit 'cl:*) (upper-limit 'cl:*))
+                ;; (define-type ,type (&optional (lower-limit 'cl:*) (upper-limit 'cl:*))
                 ;;   `(,',type ,lower-limit ,upper-limit))
                 (define-specializing-type ,type
                     (o &optional (lower-limit 'cl:*) (upper-limit 'cl:*))
@@ -113,7 +113,7 @@
                      (rational (cl:rationalize high))
                      (t (cl:coerce high num-type))))))
 
-(deftype float (&optional (low 'cl:*) (high 'cl:*))
+(define-type float (&optional (low 'cl:*) (high 'cl:*))
   #+(or sbcl ccl ecl)
   `(or ,(equivalent-num-type-form 'single-float low high)
        ,(equivalent-num-type-form 'double-float low high)
@@ -121,25 +121,25 @@
   #-(or sbcl ccl ecl)
   (error "FLOAT not implemented"))
 
-(deftype short-float (&optional (low 'cl:*) (high 'cl:*))
+(define-type short-float (&optional (low 'cl:*) (high 'cl:*))
   #+(or sbcl ccl ecl)
   (equivalent-num-type-form 'single-float low high)
   #-(or sbcl ccl ecl)
   (error "SHORT-FLOAT not implemented on ~S" (lisp-implementation-type)))
 
 #-ecl
-(deftype long-float (&optional (low 'cl:*) (high 'cl:*))
+(define-type long-float (&optional (low 'cl:*) (high 'cl:*))
   #+(or sbcl ccl)
   (equivalent-num-type-form 'double-float low high)
   #-(or sbcl ccl)
   (error "LONG-FLOAT not implemented on ~S" (lisp-implementation-type)))
 
-(deftype real (&optional (low 'cl:*) (high 'cl:*))
+(define-type real (&optional (low 'cl:*) (high 'cl:*))
   `(or ,(equivalent-num-type-form 'integer low high)
        ,(equivalent-num-type-form 'rational low high)
        ,(equivalent-num-type-form 'float low high)))
 
-(deftype signed-byte (&optional (s 'cl:*))
+(define-type signed-byte (&optional (s 'cl:*))
   (if (eq s 'cl:*)
       'integer
       (progn
@@ -148,7 +148,7 @@
               (high (1- (expt 2 (1- s)))))
           `(integer ,low ,high)))))
 
-(deftype unsigned-byte (&optional (s 'cl:*))
+(define-type unsigned-byte (&optional (s 'cl:*))
   (if (eq s 'cl:*)
       `(integer 0)
       (progn
@@ -157,18 +157,18 @@
               (high (1- (expt 2 s))))
           `(integer ,low ,high)))))
 
-(deftype fixnum () `(integer ,most-negative-fixnum ,most-positive-fixnum))
-(deftype bignum () `(and integer (not fixnum)))
-(deftype mod (n) `(integer 0 ,(1- n)))
-(deftype bit () `(integer 0 1))
+(define-type fixnum () `(integer ,most-negative-fixnum ,most-positive-fixnum))
+(define-type bignum () `(and integer (not fixnum)))
+(define-type mod (n) `(integer 0 ,(1- n)))
+(define-type bit () `(integer 0 1))
 
-(deftype ratio () `(and rational (not integer)))
+(define-type ratio () `(and rational (not integer)))
 
 
 (define-orthogonally-specializing-type complex (&optional (typespec 'cl:*))
   ((typespec :accessor (lambda (c) (class-name (class-of (realpart c)))))))
 
-(deftype number () `(or real complex))
+(define-type number () `(or real complex))
 
 (define-orthogonally-specializing-type (%array :class array)
     (&optional (element-type 'cl:*) (rank 'cl:*) (dimensions 'cl:*) (simple-p 'cl:*))
@@ -193,39 +193,39 @@
                          dimensions
                          rank)))))
 
-(deftype array (&optional (element-type 'cl:*) (dim/rank 'cl:*))
+(define-type array (&optional (element-type 'cl:*) (dim/rank 'cl:*))
   (if (consp dim/rank)
       `(%array ,element-type ,(length dim/rank) ,dim/rank cl:*)
       `(%array ,element-type ,dim/rank cl:* cl:*)))
-(deftype simple-array (&optional (element-type 'cl:*) (dim/rank 'cl:*))
+(define-type simple-array (&optional (element-type 'cl:*) (dim/rank 'cl:*))
   (if (consp dim/rank)
       `(%array ,element-type ,(length dim/rank) ,dim/rank t)
       `(%array ,element-type ,dim/rank cl:* t)))
 
-(deftype vector (&optional (element-type 'cl:*) (size 'cl:*))
+(define-type vector (&optional (element-type 'cl:*) (size 'cl:*))
   `(array ,element-type (,size)))
-(deftype simple-vector (&optional (size 'cl:*))
+(define-type simple-vector (&optional (size 'cl:*))
   `(simple-array t ,size))
 
-(deftype string (&optional (size 'cl:*))
+(define-type string (&optional (size 'cl:*))
   ;; FIXME: See http://www.lispworks.com/documentation/lw70/CLHS/Body/t_string.htm#string
   ;; We need SUBTYPES of CHARACTER
   `(or (array base-char (,size))
        (array character (,size))))
 
-(deftype simple-string (&optional (size 'cl:*))
+(define-type simple-string (&optional (size 'cl:*))
   ;; FIXME: See http://www.lispworks.com/documentation/lw70/CLHS/Body/t_string.htm#string
   ;; We need SUBTYPES of CHARACTER
   `(or (simple-array base-char (,size))
        (simple-array character (,size))))
-(deftype base-string (&optional (size 'cl:*))
+(define-type base-string (&optional (size 'cl:*))
   `(array base-char (,size)))
-(deftype simple-base-string (&optional (size 'cl:*))
+(define-type simple-base-string (&optional (size 'cl:*))
   `(simple-array base-char (,size)))
 
-(deftype bit-vector (&optional (size 'cl:*))
+(define-type bit-vector (&optional (size 'cl:*))
   `(array bit (,size)))
-(deftype simple-bit-vector (&optional (size 'cl:*))
+(define-type simple-bit-vector (&optional (size 'cl:*))
   `(simple-array bit (,size)))
 
 (define-orthogonally-specializing-type cons
@@ -233,9 +233,10 @@
   ((car-typespec :accessor (lambda (c) (class-name (class-of (car c)))))
    (cdr-typespec :accessor (lambda (c) (class-name (class-of (cdr c)))))))
 
-(deftype list () `(or cons null))
+(define-type list () `(or cons null))
 
-(define-compound-type function (o &optional (arg-typespec 'cl:*) (value-typespec 'cl:*))
+(define-compound-type (function :cl-type nil)
+    (o &optional (arg-typespec 'cl:*) (value-typespec 'cl:*))
   (let ((name (swank/backend:function-name #'+)))
     (cond ((and (eq 'cl:* arg-typespec)
                 (eq 'cl:* value-typespec))
@@ -254,30 +255,30 @@
   ((package-name :accessor (lambda (s) (package-name (symbol-package s))))
    (length :accessor (lambda (s) (length (symbol-name s))))))
 
-(deftype symbol () `%symbol)
-(deftype keyword () '(%symbol "KEYWORD"))
+(define-type symbol () `%symbol)
+(define-type keyword () '(%symbol "KEYWORD"))
 
 (define-orthogonally-specializing-type (%char :class character)
     (&optional (base-char-p 'cl:*))
   ((base-char-p :accessor (lambda (o) (cl:typep o 'base-char)))))
 
-(define-compound-type standard-char (o) (cl:typep o 'standard-char))
+(define-compound-type (standard-char :cl-type nil) (o) (cl:typep o 'standard-char))
 ;; BASE-CHAR is the UPGRADED-ARRAY-ELEMENT-TYPE of STANDARD-CHAR
 ;; All the three compound-types for characters have implemented %SUBTYPEP
 ;; methods in subtypep.lisp
 
-(deftype base-char () `(%char t))
-(deftype extended-char () `(%char nil))
-(deftype character () `%char)
+(define-type base-char () `(%char t))
+(define-type extended-char () `(%char nil))
+(define-type character () `%char)
 
-(deftype boolean () `(member t nil))
+(define-type boolean () `(member t nil))
 
 ;; FIXME: While incorporating sequences that are not lists or vectors,
 ;; one needs to think about *which* sequence protocol to support.
 ;; Eg: the one in generic-cl, the one in lisp-polymorph, the one in
 ;; trivial-extensible-sequences, the one in extensible-sequences,
 ;; or something else?!
-(deftype sequence () `(or vector list))
+(define-type sequence () `(or vector list))
 
 
 #+sbcl

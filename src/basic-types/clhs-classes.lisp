@@ -54,4 +54,4 @@
                         `(define-orthogonally-specializing-type ,n () ())))))
   (def))
 
-(deftype class () 'standard-class)
+(define-type class () 'standard-class)

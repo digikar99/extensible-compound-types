@@ -1,6 +1,7 @@
 (defpackage :extensible-compound-types
   (:use)
-  (:export #:deftype
+  (:export #:define-type
+           #:deftype
            #:undeftype
 
            #:typexpand-1

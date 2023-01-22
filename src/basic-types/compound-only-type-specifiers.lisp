@@ -2,7 +2,7 @@
 
 ;; FIXME: These should not be valid as ATOMIC TYPE SPECIFIERS
 
-(define-compound-type (and :specializing nil) (o &rest type-specifiers)
+(define-compound-type(and :specializing nil :cl-type nil) (o &rest type-specifiers)
   (every (lambda (type) (typep o type))
          type-specifiers))
 
@@ -14,9 +14,9 @@
     `(cl:and ,@(loop :for type-specifier-form :in type-specifier-forms
                      :collect `(typep ,o-form ,type-specifier-form)))))
 
-(deftype t () `(and))
+(define-type t () `(and))
 
-(define-compound-type (or :specializing nil) (o &rest type-specifiers)
+(define-compound-type (or :specializing nil :cl-type nil) (o &rest type-specifiers)
   (declare (dynamic-extent type-specifiers))
   (loop :for type :in type-specifiers
           :thereis (typep o type)))
@@ -29,35 +29,34 @@
     `(cl:or ,@(loop :for type-specifier-form :in type-specifier-forms
                     :collect `(typep ,o-form ,type-specifier-form)))))
 
-(deftype nil () `(or))
+(define-type nil () `(or))
 
 
 
-(define-compound-type (eql :specializing nil) (o object)
+(define-compound-type (eql :specializing nil :cl-type nil) (o object)
   (cl:eql o object))
 
 
 
-(deftype member (&rest objects)
+(define-type member (&rest objects)
   `(or ,@(loop :for o :in objects :collect `(eql ,o))))
 
 
 
-(define-compound-type (not :specializing nil) (o typespec)
+(define-compound-type (not :specializing nil :cl-type nil) (o typespec)
   (not (typep o typespec)))
 
 (define-cl-type-for-extype not (type env)
   `(not ,(upgraded-cl-type (second type) env)))
 
-(define-compound-type (satisfies :specializing nil) (o predicate-name)
+(define-compound-type (satisfies :specializing nil :cl-type nil) (o predicate-name)
   (funcall (fdefinition predicate-name) o))
 
-(defmethod %subtypep ((t1-name (eql 'satisfies)) (t2-name (eql nil)) type1 type2
-                      &optional env)
-  (declare (ignore t1-name t2-name type1 type2 env))
+(define-subtypep-lambda (satisfies nil) (type1 type2 env)
+  (declare (ignore type1 type2 env))
   (values nil nil))
 
-(define-compound-type (values :specializing nil) (o &rest type-specifiers)
+(define-compound-type (values :specializing nil :cl-type nil) (o &rest type-specifiers)
   (typep o (first type-specifiers)))
 
 (define-cl-type-for-extype values (type env)
