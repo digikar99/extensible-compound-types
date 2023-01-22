@@ -53,3 +53,31 @@
   (def))
 
 (define-type class () 'standard-class)
+
+(defun clhs-class-from-type-spec (type-spec)
+  (flet ((%clhs-class-from-type-spec (type-spec)
+           (loop :for class :in +clhs-classes+
+                 :if (subtypep type-spec class)
+                   :do (return class))))
+    (let* ((type-spec (typexpand type-spec)))
+      (optima:match type-spec
+        ((list* 'specializing class-name _)
+         class-name)
+        ((list 'and)
+         t)
+        ((list* class-name _)
+         (if (member class-name '(or and not satisfies eql member))
+             (%clhs-class-from-type-spec type-spec)
+             class-name))
+        ((variable class-name)
+         class-name)))))
+
+(defun clhs-class-from-object (object)
+  (let* ((object-class (class-of object))
+         (object-class-name (class-name object-class)))
+    (if (eq (find-package :cl)
+            (symbol-package object-class-name))
+        (loop :for class :in +clhs-classes+
+              :if (cl:subtypep object-class class)
+                :do (return class))
+        object-class-name)))
