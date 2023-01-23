@@ -44,13 +44,10 @@
               :finally (return sorted-class-list))))
   :test #'equal)
 
-(macrolet ((def ()
-             `(progn
-                ,@(loop :for n :in +clhs-classes+
-                        :if (not (extype-structure n nil))
-                          :collect
-                        `(define-orthogonally-specializing-type ,n () ())))))
-  (def))
+(with-eval-always
+  (loop :for n :in +clhs-classes+
+        :if (not (extype-structure n nil))
+          :do (eval `(define-orthogonally-specializing-type ,n () ()))))
 
 (define-type class () 'standard-class)
 
