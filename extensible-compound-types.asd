@@ -26,7 +26,8 @@
                (:file "misc")))
 
 (defsystem "extensible-compound-types/class-specializers"
-  :depends-on ("extensible-compound-types/core")
+  :depends-on ("extensible-compound-types/core"
+               "cl-form-types")
   :description "EXTENSIBLE-COMPOUND-TYPES for user-defined compound-types like (array &optional element-type dimension-spec)"
   :serial t
   :pathname "src"

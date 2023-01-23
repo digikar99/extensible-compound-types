@@ -120,6 +120,30 @@ corresponding to a given value."
   (and (cl:typep o class-name)
        (apply (cs-lambda (class-specializer class-name)) o args)))
 
+(define-compound-type-compiler-macro specializing
+    (&whole form o-form class-name-form &rest arg-forms &environment env)
+  (let* ((class-name-form-type
+           (cl-form-types:nth-form-type class-name-form env))
+         (class-name (optima:match class-name-form-type
+                       ((list 'eql class-name)
+                        class-name)
+                       ((list 'member class-name)
+                        class-name)
+                       (_
+                        t))))
+    (if (eq t class-name)
+        form
+        (with-gensyms (o)
+          (let ((o-form-type (cl-form-types:nth-form-type o-form env)))
+            `(let ((,o ,o-form))
+               (declare (extype ,o-form-type ,o)
+                        (cl:type ,(upgraded-cl-type o-form-type) ,o))
+               (and (cl:typep ,o ',class-name)
+                    (,(cs-lambda-expression
+                       (class-specializer class-name))
+                     ,o
+                     ,@arg-forms))))))))
+
 (define-subtypep-lambda (specializing specializing) (exp1 exp2 env)
   (declare (ignore env))
   (destructuring-bind (class1 &rest args1) (rest exp1)
