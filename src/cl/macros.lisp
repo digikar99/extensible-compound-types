@@ -157,4 +157,4 @@
 
 (defmacro excl:with-slots (slots instance &body body &environment env)
   `(clel:with-slots ,slots ,instance
-     ,@(decl-and-type-check-body body env)))
+     ,@(nthcdr 2 (macroexpand-1 `(excl:let () ,@body) env))))
