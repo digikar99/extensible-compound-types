@@ -5,6 +5,7 @@
                "compiler-macro-notes"
                "fiveam"
                "in-nomine"
+               "introspect-environment"
                "optima"
                (:feature (:not :swank) "swank")
                "trivial-types")

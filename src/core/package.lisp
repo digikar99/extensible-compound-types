@@ -86,8 +86,9 @@
            #:named-lambda)
   (:import-from :trivial-types
                 #:character-designator)
+  (:shadowing-import-from :introspect-environment
+                          #:parse-macro)
   (:import-from :cl-environments.cltl2
-                #:parse-macro
                 #:define-declaration
                 #:declaration-information))
 
