@@ -39,9 +39,8 @@
            #:undefine-compound-type-compiler-macro
            #:upgraded-cl-type
            #:define-cl-type-for-extype
-
-           #:*excluded-packages-for-cl-deftype*
-           #:define-mutually-exclusive-types
+           #:define-subtypep-lambda
+           #:define-intersect-type-p-lambda
 
            #:unknown-type-specifier
 
