@@ -39,8 +39,11 @@ An orthogonally specializing class specializer has some nice
 properties; in particular, subtypep and intersectp methods
 are automatically defined for them.
 
-This also means that there exists a unique most specialized type
-corresponding to a given value."
+For our purposes, we also assume that every not-* value of the
+type parameters results in a different non-intersecting
+type specifier. If or not this is necessary for the notion of
+orthogonality seems unclear. Orthogonality was intended as
+between parameters rather than within parameters."
   slots)
 
 (defun equalize-list-lengths/2 (l1 l2 &optional default)
@@ -238,6 +241,21 @@ SLOT-LAMBDA-LIST
 
 Each element of SLOT-TYPE-SPECS should be of the form
   (SLOT-NAME &KEY (ACCESSOR 'SLOT-VALUE))
+
+An orthogonally specializing type is a class specializer is an EXTYPE
+whose each argument specializes independently of each other.
+For example (ARRAY element-type) is an orthogonally specializing
+class specializer, while (INTEGER low high) is not.
+
+An orthogonally specializing class specializer has some nice
+properties; in particular, subtypep and intersectp methods
+are automatically defined for them.
+
+For our purposes, we also assume that every non-* value of the
+type parameters results in a different non-intersecting
+type specifier. If or not this is necessary for the notion of
+orthogonality seems unclear. Orthogonality was intended as
+between parameters rather than within parameters.
 "
   ;; TODO: Define a TRIVIA/OPTIMA pattern for this type
   (with-gensyms (whole object-var specializer)

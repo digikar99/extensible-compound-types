@@ -228,10 +228,60 @@
 (define-type simple-bit-vector (&optional (size 'cl:*))
   `(simple-array bit (,size)))
 
-(define-orthogonally-specializing-type cons
-    (&optional (car-typespec 'cl:*) (cdr-typespec 'cl:*))
-  ((car-typespec :accessor (lambda (c) (class-name (class-of (car c)))))
-   (cdr-typespec :accessor (lambda (c) (class-name (class-of (cdr c)))))))
+(define-specializing-type cons (o &optional (car-typespec 'cl:*) (cdr-typespec 'cl:*))
+  (and (or (eql car-typespec 'cl:*)
+           (typep (car o) car-typespec))
+       (or (eql cdr-typespec 'cl:*)
+           (typep (cdr o) cdr-typespec)))
+  :subtypep-lambda
+  (lambda (t1 t2)
+    (destructuring-bind (&optional (car1 'cl:*) (cdr1 'cl:*)) t1
+      (destructuring-bind (&optional (car2 'cl:*) (cdr2 'cl:*)) t2
+        (cond ((eql car2 'cl:*)
+               (values t t))
+              ((eql car1 'cl:*)
+               (values nil t))
+              ((eql cdr2 'cl:*)
+               (multiple-value-bind (subtypep knownp)
+                   (subtypep car1 car2)
+                 (if knownp
+                     (values subtypep t)
+                     (values nil nil))))
+              ((eql cdr1 'cl:*)
+               (values nil t))
+              (t
+               (multiple-value-bind (car-subtypep car-knownp)
+                   (subtypep car1 car2)
+                 (multiple-value-bind (cdr-subtypep cdr-knownp)
+                     (subtypep cdr1 cdr2)
+                   (if (and car-knownp cdr-knownp)
+                       (values (and car-subtypep cdr-subtypep) t)
+                       (values nil nil)))))))))
+  :intersect-type-p-lambda
+  (lambda (t1 t2)
+    (destructuring-bind (&optional (car1 'cl:*) (cdr1 'cl:*)) t1
+      (destructuring-bind (&optional (car2 'cl:*) (cdr2 'cl:*)) t2
+        (cond ((or (eql car1 'cl:*) (eql car2 'cl:*)
+                   (eql cdr1 'cl:*) (eql cdr2 'cl:*))
+               (values t t))
+              (t
+               (multiple-value-bind (car-intersectp car-knownp)
+                   (intersect-type-p car1 car2)
+                 (multiple-value-bind (cdr-intersectp cdr-knownp)
+                     (intersect-type-p cdr1 cdr2)
+                   (if (and car-knownp cdr-knownp)
+                       (values (and car-intersectp cdr-intersectp) t)
+                       (values nil nil)))))))))
+  :to-cl-type
+  (lambda (typespec)
+    (destructuring-bind (&optional (car 'cl:*) (cdr 'cl:*))
+        (rest (ensure-list typespec))
+      `(cons ,(if (eql 'cl:* car)
+                  'cl:*
+                  (upgraded-cl-type car))
+             ,(if (eql 'cl:* cdr)
+                  'cl:*
+                  (upgraded-cl-type cdr))))))
 
 (define-type list () `(or cons null))
 
