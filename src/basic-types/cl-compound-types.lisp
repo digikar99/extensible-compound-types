@@ -299,6 +299,30 @@
                  (subtypep ftype (list 'function arg-typespec value-typespec)))))
           (t
            (values nil nil)))))
+(define-cl-type-for-extype function (type-spec env)
+  (declare (ignore env))
+  (let ((state nil))
+    (flet ((may-be-upgraded-cl-type (typespec)
+             (cond ((member typespec lambda-list-keywords)
+                    (setq state typespec))
+                   ((eq state '&key)
+                    `(,(first typespec) ,(upgraded-cl-type (second typespec))))
+                   (t
+                    (upgraded-cl-type typespec)))))
+      (destructuring-bind (&optional (arg-typespecs 'cl:*) (value-typespec 'cl:*))
+          (rest (ensure-list type-spec))
+        (if (eq arg-typespecs 'cl:*)
+            `(cl:function cl:* cl:*)
+            `(cl:function (,@(mapcar #'may-be-upgraded-cl-type arg-typespecs))
+                          ,(optima:match value-typespec
+                             ((list 'cl:values value-typespecs)
+                              (setq state nil)
+                              `(cl:values ,@(mapcar #'may-be-upgraded-cl-type
+                                                    value-typespecs)))
+                             ((quote cl:*)
+                              'cl:*)
+                             (_
+                              (may-be-upgraded-cl-type value-typespec)))))))))
 
 (define-orthogonally-specializing-type (%symbol :class symbol)
     (&optional (package-name 'cl:*) (length 'cl:*))
