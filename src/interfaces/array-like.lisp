@@ -44,9 +44,7 @@
 (define-interface-instance array-like cons
   (dimensions-and-strides (cons)
     (multiple-value-bind (rest-dimensions rest-strides)
-        (if (typep (car cons) 'array-like)
-            (dimensions-and-strides (car cons))
-            (values nil nil))
+        (dimensions-and-strides (car cons))
       (let ((current-dimension (length cons)))
         (values (cons current-dimension
                       rest-dimensions)
@@ -57,17 +55,11 @@
         (loop :with max-type := nil
               :for elt :in cons
               :do (setq max-type
-                        (max-type max-type (if (typep elt 'array-like)
-                                               (element-type elt)
-                                               (type-of elt))))
+                        (max-type max-type (element-type elt)))
               :finally (return max-type))
         'null))
   (row-major-iterator (cons)
-     (let ((iterators (mapcar (lambda (elt)
-                                (if (typep elt 'array-like)
-                                    (row-major-iterator elt)
-                                    elt))
-                              cons)))
+     (let ((iterators (mapcar #'row-major-iterator cons)))
        (lambda ()
          (let ((iterator (first iterators)))
            (if (functionp iterator)
