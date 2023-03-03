@@ -53,7 +53,7 @@ Both =define-orthogonally-specializing-type= and =define-specializing-type= are 
 
 TODO: Add examples on this page itself.
 
-* API
+* Basic API
 
 ** Working with existing types
 
@@ -83,3 +83,11 @@ TODO: Add examples on this page itself.
 - extype
 - ftype
 - exftype
+
+
+* Interface types
+
+For examples, see the .lisp files in [[file:src/interfaces/][src/interfaces]].
+
+- (define-interface name &rest interface-function-names)
+- (define-interface-instance interface-name type &rest function-definitions)
