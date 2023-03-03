@@ -251,11 +251,16 @@ An orthogonally specializing class specializer has some nice
 properties; in particular, subtypep and intersectp methods
 are automatically defined for them.
 
-For our purposes, we also assume that every non-* value of the
+For our purposes, we further assume that every non-* value of the
 type parameters results in a different non-intersecting
-type specifier. If or not this is necessary for the notion of
-orthogonality seems unclear. Orthogonality was intended as
-between parameters rather than within parameters.
+type specifier. Originally, orthogonality was intended as
+between parameters rather than within parameters. However, because
+orthogonal type specifiers have been put to use as parametric types
+in polymorphic-functions, and they require that the type specifiers
+not only be orthogonal but also unique, we carry over the uniqueness
+property to the orthogonal type specifiers themselves. The crux of the
+problem is to be able to derive unique type parameters given an
+object's value.
 "
   ;; TODO: Define a TRIVIA/OPTIMA pattern for this type
   (with-gensyms (whole object-var specializer)
