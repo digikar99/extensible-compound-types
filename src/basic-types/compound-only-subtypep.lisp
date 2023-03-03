@@ -45,24 +45,26 @@
 
 (define-subtypep-lambda (and nil) (type1 type2 env)
   (let ((type1 (simplify-and-type type1)))
-    (cond ((and (listp type1)
-                (eq 'and (first type1)))
-           (multiple-value-bind (null knownp) (apply #'intersection-null-p env (rest type1))
-             (cond ((and knownp null)
-                    (values t t))
-                   ;; ((not knownp)
-                   ;;  (values nil nil))
-                   (t
-                    (values (some (lambda (type)
-                                    (multiple-value-bind (subtypep knownp)
-                                        (subtypep type type2 env)
-                                      ;; We want at least one type to be a known subtype
-                                      (and knownp subtypep)))
-                                  (rest type1))
-                            t)))))
-          (t
-           (multiple-value-bind (subtypep knownp) (subtypep type1 type2 env)
-             (values subtypep knownp))))))
+    (optima:match type1
+      ((list 'and)
+       (values nil nil))
+      ((list* 'and typespecs)
+       (multiple-value-bind (null knownp) (apply #'intersection-null-p env typespecs)
+         (cond ((and knownp null)
+                (values t t))
+               ;; ((not knownp)
+               ;;  (values nil nil))
+               (t
+                (values (some (lambda (type)
+                                (multiple-value-bind (subtypep knownp)
+                                    (subtypep type type2 env)
+                                  ;; We want at least one type to be a known subtype
+                                  (and knownp subtypep)))
+                              typespecs)
+                        t)))))
+      (_
+       (multiple-value-bind (subtypep knownp) (subtypep type1 type2 env)
+         (values subtypep knownp))))))
 
 (define-subtypep-lambda (nil and) (type1 type2 env)
   (let ((type2 (simplify-and-type type2)))
