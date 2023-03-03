@@ -16,7 +16,8 @@
            #:array-like
            #:element-type
            #:dimensions-and-strides
-           #:row-major-iterator))
+           #:row-major-iterator
+           #:dimensions))
 
 (defpackage :extensible-compound-types-interfaces.impl
   (:use :polymorphic-functions
@@ -34,6 +35,7 @@
                 #:array-like
                 #:element-type
                 #:dimensions-and-strides
+                #:dimensions
                 #:row-major-iterator)
   (:import-from :alexandria
                 #:with-gensyms

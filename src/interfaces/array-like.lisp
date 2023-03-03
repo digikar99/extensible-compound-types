@@ -33,6 +33,9 @@
   (element-type (array-like) (or symbol cons))
   (row-major-iterator (array-like)))
 
+(defpolymorph dimensions (array-like) list
+  (nth-value 0 (dimensions-and-strides array-like)))
+
 (define-interface-instance array-like t
   (dimensions-and-strides (object) (declare (ignore object)) (values nil nil))
   (element-type (object) (type-of object))
