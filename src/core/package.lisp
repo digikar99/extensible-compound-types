@@ -47,6 +47,7 @@
            #:specializing
            #:define-specializing-type
            #:define-orthogonally-specializing-type
+           #:specializing-type-specifier-p
            #:orthogonally-specializing-type-specifier-p
 
            #:clhs-class-from-object

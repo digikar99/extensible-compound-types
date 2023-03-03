@@ -297,9 +297,16 @@ between parameters rather than within parameters.
              (setf (class-specializer ',class) ,specializer)
              (setf (extype-structure ',extype-name) ,specializer)))))))
 
+
+(defun specializing-type-specifier-p (object)
+  (and (type-specifier-p object)
+       (with-extype-name-and-expansion (name exp) object
+         (eq name 'specializing))))
+
 (defun orthogonally-specializing-type-specifier-p (object)
   (and (type-specifier-p object)
        (with-extype-name-and-expansion (name exp) object
          (and (eq name 'specializing)
               (orthogonal-class-specializer-p
                (class-specializer (second exp)))))))
+
