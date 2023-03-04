@@ -123,6 +123,43 @@ between parameters rather than within parameters."
   (and (cl:typep o class-name)
        (apply (cs-lambda (class-specializer class-name)) o args)))
 
+(defun lambda-list-declarations-from-args (lambda-list arg-forms &optional env)
+  (let* ((keyword-pos (position '&key lambda-list))
+         (keyword-parameters (when keyword-pos
+                               (subseq lambda-list (1+ keyword-pos)))))
+    (flet ((form-type-decl (form parameter)
+             (let* ((extype (cl-form-types:nth-form-type form env 0 t t))
+                    (type (upgraded-cl-type extype)))
+               `((extype ,extype ,parameter)
+                 (cl:type ,type ,parameter))))
+           (keyword (name)
+             (find name keyword-parameters :test #'string=)))
+      `(declare ,@(loop :with state := nil
+                        :while arg-forms
+                        :for parameter :in lambda-list
+                        :nconcing
+                        (if (member parameter lambda-list-keywords)
+                            (progn (setq state parameter) nil)
+                            (let ((decl
+                                    (case state
+                                      ((nil)
+                                       `(,@(form-type-decl (first arg-forms) parameter)))
+                                      (&optional
+                                       (let ((parameter (etypecase parameter
+                                                          (symbol parameter)
+                                                          (cons (first parameter)))))
+                                         `(,@(form-type-decl (first arg-forms)
+                                                             parameter))))
+                                      (&key
+                                       (let ((name  (first arg-forms))
+                                             (value (second arg-forms)))
+                                         `(,@(form-type-decl value
+                                                             (keyword name))))))))
+                              (setq arg-forms (case state
+                                                (&key (nthcdr 2 arg-forms))
+                                                (t (cdr arg-forms))))
+                              decl)))))))
+
 (define-compound-type-compiler-macro specializing
     (&whole form o-form class-name-form &rest arg-forms &environment env)
   (let* ((class-name-form-type
@@ -133,19 +170,36 @@ between parameters rather than within parameters."
                        ((list 'member class-name)
                         class-name)
                        (_
-                        t))))
-    (if (eq t class-name)
-        form
-        (with-gensyms (o)
-          (let ((o-form-type (cl-form-types:nth-form-type o-form env)))
-            `(let ((,o ,o-form))
-               (declare (extype ,o-form-type ,o)
-                        (cl:type ,(upgraded-cl-type o-form-type) ,o))
-               (and (cl:typep ,o ',class-name)
-                    (,(cs-lambda-expression
-                       (class-specializer class-name))
-                     ,o
-                     ,@arg-forms))))))))
+                        t)))
+         (parent-form `(typep ,o-form
+                              (specializing ,class-name-form ,@arg-forms))))
+    (compiler-macro-notes:with-notes
+        (parent-form env
+                     :name '(:extype specializing)
+                     :unwind-on-signal nil)
+      (if (eq t class-name)
+          (progn
+            (signal 'compiler-macro-notes:optimization-failure-note
+                    :datum "Unable to derive CLASS-NAME from type~%  ~S~%of form~%  ~S"
+                    :args (list class-name-form-type class-name-form))
+            form)
+          (with-gensyms (o)
+            (let ((o-form-type (cl-form-types:nth-form-type o-form env)))
+              `(let ((,o ,o-form))
+                 (declare (extype ,o-form-type ,o)
+                          (cl:type ,(upgraded-cl-type o-form-type) ,o))
+                 (and (cl:typep ,o ',class-name)
+                      (,(optima:ematch (cs-lambda-expression
+                                        (class-specializer class-name))
+                          ((list* lambda lambda-list body)
+                           `(,lambda ,lambda-list
+                              ,(lambda-list-declarations-from-args
+                                lambda-list (cons `(cl:the ,o-form-type ,o)
+                                                  arg-forms)
+                                env)
+                              ,@body)))
+                       ,o
+                       ,@arg-forms)))))))))
 
 (define-subtypep-lambda (specializing specializing) (exp1 exp2 env)
   (declare (ignore env))
@@ -197,6 +251,8 @@ between parameters rather than within parameters."
         &key subtypep-lambda
           intersect-type-p-lambda
           (to-cl-type ''symbol-if-possible)))
+  "The OBJECT-VAR and the parameters in LAMBDA-LIST should be treated
+as read-only parameters. The read-only nature is used for optimization."
   (with-gensyms (whole specializer)
     (destructuring-bind (extype-name &key (class extype-name))
         (ensure-list extype-name-spec)
