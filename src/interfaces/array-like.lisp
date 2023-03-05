@@ -66,7 +66,7 @@
                (multiple-value-bind (value morep) (funcall iterator)
                  (unless morep
                    (setq iterators (rest iterators)))
-                 (values value morep))
+                 (values value (if iterators t nil)))
                (progn
                  (setq iterators (rest iterators))
                  (values iterator (if iterators t nil)))))))))
