@@ -16,7 +16,7 @@
                               t)
                              ((eq 'cl:* upper-limit)
                               (cl:check-type lower-limit ,type)
-                              (cl:< (cl:the ,type lower-limit) o))
+                              (cl:<= (cl:the ,type lower-limit) o))
                              (t
                               (cl:check-type lower-limit ,type)
                               (cl:check-type upper-limit ,type)
