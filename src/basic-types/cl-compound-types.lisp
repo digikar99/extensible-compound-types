@@ -82,8 +82,10 @@
                                   ((and (>= low1 low2) ; both are specified
                                         (eq high1 'cl:*)) ; high2 is specified but high1 is not
                                    (values nil t))
-                                  ((and (>= low1 low2) ; everything is specified
-                                        (<= high1 high2))
+                                  ((or (<= low1 low2 high1 high2) ; everything is specified
+                                       (<= low2 low1 high2 high1)
+                                       (<= low2 low1 high1 high2)
+                                       (<= low1 low2 high2 high1))
                                    (values t t))
                                   (t
                                    (values nil t)))))))))))
