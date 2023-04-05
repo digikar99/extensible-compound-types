@@ -28,6 +28,30 @@
 (defmacro excl:define-compiler-macro (name lambda-list &body body &environment env)
   `(clel:define-compiler-macro ,@(rest (macroexpand-1 `(excl:defun ,name ,lambda-list ,@body) env))))
 
+(defmacro excl:define-modify-macro (name lambda-list function &optional doc-string)
+  (optima:ematch (macroexpand-until-car 'cl:defmacro
+                                        `(clel:define-modify-macro
+                                             ,name ,lambda-list ,function ,doc-string))
+    ((list* 'cl:defmacro name lambda-list body)
+     (a:with-gensyms (expr bindings let-body form)
+       (multiple-value-bind (lambda-list env-sym)
+           (let ((env-pos (position '&environment lambda-list)))
+             (if env-pos
+                 (values lambda-list (nth (1+ env-pos) lambda-list))
+                 (let ((env-sym (gensym "ENV")))
+                   (values (nconc lambda-list `(&environment ,env-sym)) env-sym))))
+         `(cl:defmacro ,name ,lambda-list
+            (let ((,expr (locally ,@body)))
+              (optima:ematch (macroexpand-until (lambda (,form)
+                                                  (and (listp ,form)
+                                                       (member (car ,form) '(cl:let cl:let*))))
+                                                ,expr)
+                ((list* let-sym ,bindings ,let-body)
+                 (list* let-sym ,bindings
+                        `(declare ,@(type-decl-from-bindings
+                                     ,bindings ,env-sym :parallel (string= "LET" let-sym)))
+                        ,let-body))))))))))
+
 (defmacro excl:defmethod (name &rest args &environment env)
   (if (listp (first args))
       `(clel:defmethod ,@(rest (macroexpand-1 `(excl:defun ,name ,@args) env)))

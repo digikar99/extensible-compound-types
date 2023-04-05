@@ -1,5 +1,76 @@
 (in-package :extensible-compound-types-cl.impl)
 
+(defun macroexpand-until (predicate form &optional env)
+  "Calls MACROEXPAND-1 on FORM until it is a list which
+starts with the symbol specified by CAR"
+  (loop :until (funcall predicate form)
+        :for expansion := (macroexpand-1 form env)
+        :do (setq form expansion)
+            (sleep 1)
+        :finally (return form)))
+
+(defun macroexpand-until-car (car form &optional env)
+  "Calls MACROEXPAND-1 on FORM until it is a list which
+starts with the symbol specified by CAR"
+  (cl:check-type car symbol)
+  (loop :until (and (listp form)
+                    (eq car (car form)))
+        :for expansion := (macroexpand-1 form env)
+        :do (setq form expansion)
+        :finally (return form)))
+
+(defun type-decl-from-bindings (bindings env &key parallel)
+  (if parallel
+      (loop :for binding :in bindings
+            :nconcing
+            (multiple-value-bind (var form)
+                (if (symbolp binding)
+                    (values binding nil)
+                    (values-list binding))
+              (unless
+                  #+sbcl (and (symbol-package var)
+                              (sb-ext:package-locked-p (symbol-package var)))
+                  #-sbcl ()
+                  (let ((form-type (cl-form-types:nth-form-type form env 0 t #-ccl t
+                                                                             #+ccl nil)))
+                    (cond ((eq cl:t form-type)
+                           ())
+                          (t
+                           `((ex:extype ,form-type ,var)
+                             (cl:type ,(ex:upgraded-cl-type form-type env) ,var))))))))
+      (loop :with augmented-env := nil
+            :with form-type-env := env
+            :for binding :in bindings
+            :nconcing
+            (multiple-value-bind (var form)
+                (if (symbolp binding)
+                    (values binding nil)
+                    (values-list binding))
+              (unless #+sbcl (and (symbol-package var)
+                                  (sb-ext:package-locked-p (symbol-package var)))
+                      #-sbcl ()
+                      (let ((form-type (cl-form-types:nth-form-type
+                                        form form-type-env 0 t #-ccl t #+ccl nil)))
+                        (cond ((eq cl:t form-type)
+                               ())
+                              (t
+                               (let ((decl
+                                       `((ex:extype ,form-type ,var)
+                                         (cl:type ,(ex:upgraded-cl-type
+                                                    form-type form-type-env)
+                                                  ,var))))
+                                 (setq augmented-env
+                                       (augment-environment
+                                        augmented-env
+                                        :variable (list var)
+                                        :declare decl))
+                                 (setq form-type-env
+                                       (augment-environment
+                                        form-type-env
+                                        :variable (list var)
+                                        :declare decl))
+                                 decl)))))))))
+
 (defun special-variable-p (var &optional env)
   (eq :special (nth-value 0 (variable-information var env))))
 

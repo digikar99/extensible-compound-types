@@ -57,6 +57,7 @@
    #:define-compiler-macro
    #:define-condition
    ;;  #:define-method-combination
+   #:define-modify-macro
    ;;  #:define-setf-expander
    #:defmacro
    #:defmethod
