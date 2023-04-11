@@ -17,7 +17,17 @@
            #:element-type
            #:dimensions-and-strides
            #:row-major-iterator
-           #:dimensions))
+           #:dimensions
+
+           #:field
+           #:add
+           #:subtract
+           #:multiply
+           #:divide
+           #:one-like
+           #:zero-like
+           #:1+
+           #:1-))
 
 (defpackage :extensible-compound-types-interfaces.impl
   (:use :polymorphic-functions
@@ -36,7 +46,9 @@
                 #:element-type
                 #:dimensions-and-strides
                 #:dimensions
-                #:row-major-iterator)
+                #:row-major-iterator
+
+                #:field)
   (:import-from :alexandria
                 #:with-gensyms
                 #:assoc-value
