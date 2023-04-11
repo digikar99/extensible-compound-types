@@ -118,6 +118,10 @@ starts with the symbol specified by CAR"
                    (extract-declarations '((declare (excl:extype integer x y) (ignore x)))
                                          'excl:extype)))))
 
+(defvar excl:*disable-extype-checks* nil
+  "If non-NIL then macros in EXTENSIBLE-COMPOUND-TYPES-CL emit only
+the declarations but no CHECK-TYPE statements.")
+
 (defun prepare-extype-checks (extype-decl &optional env)
   "ENV should be passed only if the declarations pertain to already bound variables,
 rather than variables with new bindings."
@@ -137,7 +141,9 @@ rather than variables with new bindings."
                                        :format-arguments (list var old-type extype)))
                                ((and knownp intersectp)
                                 (setq extype `(and ,extype ,old-type)))))))
-               :collect `(ex:check-type ,var ,extype)))))
+               :collect (if excl:*disable-extype-checks*
+                            nil
+                            `(ex:check-type ,var ,extype))))))
    (rest extype-decl)))
 
 (defun extype-declarations (decl &optional env)

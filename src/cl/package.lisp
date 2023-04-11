@@ -18,6 +18,7 @@
             (push s symbols))
           symbols))
 
+  (:export #:*disable-extype-checks*)
   (:export #:compile
            #:augment-environment)
 
