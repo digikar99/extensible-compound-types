@@ -7,4 +7,6 @@
                (:file "interface")
                (:file "eq")
                (:file "sequence")
-               (:file "array-like")))
+               (:file "array-like")
+               (:file "iterable")
+               (:file "field")))

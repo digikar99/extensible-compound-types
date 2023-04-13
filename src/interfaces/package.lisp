@@ -27,7 +27,12 @@
            #:one-like
            #:zero-like
            #:1+
-           #:1-))
+           #:1-
+
+           #:iterable
+           #:at
+           #:first-key
+           #:next-key))
 
 (defpackage :extensible-compound-types-interfaces.impl
   (:use :polymorphic-functions
@@ -48,7 +53,18 @@
                 #:dimensions
                 #:row-major-iterator
 
-                #:field)
+                #:field
+                #:add
+                #:subtract
+                #:multiply
+                #:divide
+                #:one-like
+                #:zero-like
+
+                #:iterable
+                #:at
+                #:first-key
+                #:next-key)
   (:import-from :alexandria
                 #:with-gensyms
                 #:assoc-value
