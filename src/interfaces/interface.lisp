@@ -20,7 +20,8 @@
             (:constructor make-interface))
   "An INTERFACE defines the external interface to classes with varying
 internal interfaces."
-  functions
+  required-functions
+  default-functions
   instances
   dependencies)
 
@@ -115,8 +116,14 @@ DEFINE-INTERFACE-INSTANCE are then subtypes of INTERFACE-NAME.
 
 INTERFACE-NAME can be a symbol or a list of the form
   (INTERFACE-NAME &KEY (CL-TYPE T))
+
 Each of INTERFACE-FUNCTIONS should be a list of the form
-  (FUNCTION-NAME TYPE-LIST &OPTIONAL RETURN-TYPE)
+  (FUNCTION-NAME TYPE-LIST &OPTIONAL RETURN-TYPE DOCUMENTATION
+     DEFAULT-LAMBDA-LIST &BODY DEFAULT-BODY)
+If DEFAULT-LAMBDA-LIST and DEFAULT-BODY is not provided,
+then it will need to be necessarily provided using DEFINE-INTERFACE-INSTANCE
+
+DEPENDENCIES is currently unused.
 "
   (destructuring-bind (interface-name &key (cl-type t))
       (alexandria:ensure-list interface-name)
@@ -127,12 +134,20 @@ Each of INTERFACE-FUNCTIONS should be a list of the form
             (values nil interface-functions))
       (loop :for interface-function-name :in interface-functions
             :do (cl:check-type interface-name (or symbol (list-of (eql cl:setf) symbol))))
-      (let ((interface-functions
-              (loop :for interface-function :in interface-functions
-                    :collect (ecase (length interface-function)
-                               (2 (nconc interface-function '(t)))
-                               (3 interface-function))))
-            (interface-name-p (interface-name-p interface-name)))
+      (let* ((interface-functions
+               (loop :for interface-function :in interface-functions
+                     :collect (case (length interface-function)
+                                (2 (nconc interface-function '(t)))
+                                (t interface-function))))
+             (required-functions
+               (loop :for interface-function :in interface-functions
+                     :if (cl:<= (length interface-function) 4)
+                     :collect interface-function))
+             (default-functions
+               (loop :for interface-function :in interface-functions
+                     :if (cl:>  (length interface-function) 4)
+                     :collect interface-function))
+             (interface-name-p (interface-name-p interface-name)))
         (with-gensyms (interface object)
           `(with-eval-always
              (declaim (inline ,interface-name-p))
@@ -147,7 +162,8 @@ Each of INTERFACE-FUNCTIONS should be a list of the form
                                      :expander (lambda (&rest args)
                                                  (declare (ignore args))
                                                  '(interface ,interface-name))
-                                     :functions ',interface-functions
+                                     :required-functions ',required-functions
+                                     :default-functions  ',default-functions
                                      :dependencies ',dependencies)))
                ;; FIXME: Handle the case of redefinition
                (namespace-value-and-doc-set
@@ -159,14 +175,16 @@ Each of INTERFACE-FUNCTIONS should be a list of the form
                ;; FIXME: Validate dependencies
                ,@(loop :for interface-function :in interface-functions
                        :nconcing
-                       (destructuring-bind (fn-name type-list return-type)
+                       (destructuring-bind (fn-name type-list return-type
+                                            &optional doc &body body)
                            interface-function
+                         (declare (ignore body))
                          `((polymorphic-functions:define-polymorphic-function
                                ;; TODO: What about multi-argument interfaces
                                ,fn-name ,(interface-lambda-list-from-type-list type-list)
                              :overwrite t
                              :documentation
-                             ,(format nil "Part of the interface ~S.~%This interface includes:~%~{  ~S~^~%~}" interface-name interface-functions))
+                             ,(format nil "~A~%~%Part of the interface ~S.~%This interface includes:~%~{  ~S~^~%~}" (or doc "") interface-name interface-functions))
                            (declaim (cl:ftype ,(upgraded-cl-type
                                                 `(function ,type-list ,return-type))
                                               ,fn-name))
@@ -218,10 +236,17 @@ Each of INTERFACE-FUNCTIONS should be a list of the form
          (implemented-function-names
            (mapcar #'first interface-function-definitions))
          (required-functions
-           (interface-functions interface))
+           (interface-required-functions interface))
+         (default-functions
+           (interface-default-functions interface))
+         (all-functions
+           (append required-functions default-functions))
+         (remaining-functions
+           (set-difference all-functions interface-function-definitions
+                           :key #'first))
          (required-function-names
            (mapcar #'first required-functions)))
-    (unless (set-equal required-function-names implemented-function-names :test #'equal)
+    (unless (subsetp required-function-names implemented-function-names :test #'equal)
       ;; TODO: Make the error more informative
       (error 'incompatible-interface-instance
              :expected required-function-names :actual implemented-function-names))
@@ -231,11 +256,26 @@ Each of INTERFACE-FUNCTIONS should be a list of the form
                  :in interface-function-definitions
                :collect (destructuring-bind (name lambda-list &body body)
                             interface-function-definition
-                          (destructuring-bind (type-list return-type)
-                              (assoc-value required-functions name :test #'equal)
+                          (destructuring-bind (type-list return-type &rest doc-body)
+                              (assoc-value all-functions name :test #'equal)
+                            (declare (ignore doc-body))
                             `(polymorphic-functions:defpolymorph (,name :inline t)
                                  ,(interface-instance-lambda-list
                                    interface-name type lambda-list type-list)
                                  ,(interface-return-type
                                    interface-name type return-type)
-                               ,@body)))))))
+                               ,@body))))
+       ,@(loop :for default-function :in remaining-functions
+               :collect (destructuring-bind (name type-list return-type
+                                             &optional doc lambda-list &body body)
+                            default-function
+                          `(polymorphic-functions:defpolymorph (,name :inline t)
+                               ,(interface-instance-lambda-list
+                                 interface-name
+                                 type
+                                 lambda-list
+                                 type-list)
+                               ,(interface-return-type
+                                 interface-name type return-type)
+                             ,doc
+                             ,@body))))))
