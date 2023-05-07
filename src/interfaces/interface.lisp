@@ -243,7 +243,7 @@ DEPENDENCIES is currently unused.
            (append required-functions default-functions))
          (remaining-functions
            (set-difference all-functions interface-function-definitions
-                           :key #'first))
+                           :key #'first :test #'equal))
          (required-function-names
            (mapcar #'first required-functions)))
     (unless (subsetp required-function-names implemented-function-names :test #'equal)
