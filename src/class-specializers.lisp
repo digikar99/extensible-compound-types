@@ -328,7 +328,28 @@ object's value.
                              `(or (eql ,slot-name 'cl:*)
                                   ,(if nested
                                        `(tree-equal-or-* (,accessor ,object-var) ,slot-name)
-                                       `(equal (,accessor ,object-var) ,slot-name)))))))
+                                       `(equal (,accessor ,object-var) ,slot-name))))))
+          (slot-type-specs
+            (loop :for slot-type-spec :in slot-type-specs
+                  :collect (destructuring-bind
+                               (slot-name &key (accessor 'slot-value) nested)
+                               slot-type-spec
+                             `(list ',slot-name
+                                    :accessor ',accessor
+                                    :accessor-function
+                                    ,(if (and (listp accessor)
+                                              (eq 'cl:lambda (first accessor)))
+                                         accessor
+                                         (list 'quote accessor))
+                                    :nested ',nested)))))
+
+      ;; The restriction of only-&OPTIONAL occurs because, at least in the
+      ;; case of "parametric-types" (for, say, use in polymorphic-functions),
+      ;; we need a "unique" way to recover the type.
+      (assert (subsetp (intersection slot-lambda-list lambda-list-keywords)
+                       '(&optional))
+              ()
+              "SLOT-LAMBDA-LIST can only have &OPTIONAL arguments.")
       ;; TODO: Add options for inheritance?
       (destructuring-bind (extype-name &key (class extype-name))
           (ensure-list extype-name-spec)
@@ -353,7 +374,7 @@ object's value.
                     :subtypep-lambda 'orthogonal-subtypep-lambda
                     :intersectp-lambda 'orthogonal-intersect-type-p-lambda
                     :to-cl-type ,to-cl-type
-                    :slots ',slot-type-specs)))
+                    :slots (list ,@slot-type-specs))))
              (namespace-value-and-doc-set ',extype-name ',slot-lambda-list "")
              (setf (class-specializer ',class) ,specializer)
              (setf (extype-structure ',extype-name) ,specializer)))))))
@@ -371,3 +392,21 @@ object's value.
               (orthogonal-class-specializer-p
                (class-specializer (second exp)))))))
 
+(defun orthogonally-specializing-type-of (object)
+  "Returns the ORTHOGONALLY-SPECIALIZING-TYPE of the object."
+  (with-extype-name-and-expansion (name exp) (print (clhs-class-from-object object))
+    (assert (eq name 'specializing))
+    (let ((ocs (class-specializer (second exp))))
+      (cl:check-type ocs orthogonal-class-specializer)
+      (with-slots (name arg-list slots) ocs
+        (flet ((accessor (slot-name)
+                 (getf (assoc-value slots slot-name) :accessor-function)))
+          (cons name
+                (loop :for slot-name :in arg-list
+                      :nconc (optima:match slot-name
+                               ((list slot-name _)
+                                (list (funcall (accessor slot-name) object)))
+                               (_
+                                (if (eq slot-name '&optional)
+                                    nil
+                                    (list (funcall (accessor slot-name) object))))))))))))
