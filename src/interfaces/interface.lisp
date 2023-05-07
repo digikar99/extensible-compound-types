@@ -33,7 +33,7 @@ internal interfaces."
     (cond (existsp
            interface)
           (error-if-not-exists
-           (error 'unknown-interfaace :type interface-name))
+           (error 'unknown-interface :type interface-name))
           (t
            nil))))
 
@@ -45,7 +45,7 @@ internal interfaces."
       (remhash interface-name *interfaces*)))
 
 (define-compound-type interface (o interface-name)
-  (with-slots (instances) (interface interface-name)
+  (let ((instances (interface-instances (interface interface-name))))
     (if (member o instances :test #'typep)
         t
         nil)))
@@ -135,6 +135,11 @@ Each of INTERFACE-FUNCTIONS should be a list of the form
             (interface-name-p (interface-name-p interface-name)))
         (with-gensyms (interface object)
           `(with-eval-always
+             (declaim (inline ,interface-name-p))
+             (defun ,interface-name-p (,object)
+               (typep ,object ',interface-name))
+             ,(when cl-type
+                `(cl:deftype ,interface-name () '(satisfies ,interface-name-p)))
              (let ((,interface
                      (make-interface :name ',interface-name
                                      :documentation ,doc
@@ -151,10 +156,6 @@ Each of INTERFACE-FUNCTIONS should be a list of the form
                          interface-functions))
                (setf (extype-structure ',interface-name) ,interface)
                (setf (interface ',interface-name) ,interface)
-               (defun ,interface-name-p (,object)
-                 (typep ,object ',interface-name))
-               ,(when cl-type
-                  `(cl:deftype ,interface-name () '(satisfies ,interface-name-p)))
                ;; FIXME: Validate dependencies
                ,@(loop :for interface-function :in interface-functions
                        :nconcing

@@ -108,16 +108,17 @@ in CL:THE with UPGRADED-CL-TYPE, if all return CL:NIL, then full check is done."
                                         (error 'simple-type-error
                                                :format-control
                                                "~A value of form (0-indexed) ~%  ~S~%is~%  ~S~%not of expected type~%  ~S"
-                                               :format-arguments (list (ecase ,i
-                                                                         (1 "1st")
-                                                                         (2 "2nd")
-                                                                         (3 "3rd")
-                                                                         (t (format nil "~Ath" ,i)))
-                                                                       ',form
-                                                                       ,form-value
-                                                                       ,type))))
+                                               :format-arguments
+                                               (list (ecase ,i
+                                                       (1 "1st")
+                                                       (2 "2nd")
+                                                       (3 "3rd")
+                                                       (t (format nil "~Ath" ,i)))
+                                                     ',form
+                                                     ,form-value
+                                                     ,type))))
                             ,(when no-more-values
-                               `(unless (< ,original-num-values ,optional-position)
+                               `(unless (<= ,original-num-values ,optional-position)
                                   (error 'simple-type-error
                                          :format-control
                                          "Expected at most ~D value(s) but~%  ~S~%returned ~D values: ~S"

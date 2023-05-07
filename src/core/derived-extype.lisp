@@ -47,7 +47,8 @@ Use DEFINE-TYPE if a CL type specifier should not be defined for NAME."
            ,@(when doc `(,doc))
            ,(ignore-all-form-from-lambda-list lambda-list)
            (upgraded-cl-type ,form))
-         (define-type ,name ,lambda-list ,@body)))))
+         (define-type ,name ,lambda-list ,@body)
+         ',name))))
 
 ;;; TODO: Could introduce a TMAKUNBOUND
 (defmacro undeftype (name)
