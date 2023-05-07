@@ -37,6 +37,8 @@
 (defpackage :extensible-compound-types-interfaces.impl
   (:use :polymorphic-functions
         :extensible-compound-types-cl)
+  (:import-from :polymorphic-functions
+                #:traverse-tree)
   (:import-from :extensible-compound-types.impl
                 #:derived-extype
                 #:with-eval-always

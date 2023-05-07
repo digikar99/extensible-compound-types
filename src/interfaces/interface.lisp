@@ -174,18 +174,39 @@ Each of INTERFACE-FUNCTIONS should be a list of the form
                                              ,fn-name))))))))))))
 
 (defun interface-instance-lambda-list (interface-name instance-type lambda-list type-list)
-  (loop :for variable :in lambda-list
+  (loop :with state := :required
+        :for variable :in lambda-list
         :for type :in type-list
-        :collect `(,variable ,(cond ((eq interface-name type)
-                                     instance-type)
-                                    (t
-                                     type)))))
+        :if (member variable lambda-list-keywords)
+          :collect (setq state variable)
+        :else
+          :collect (if (eq state '&rest)
+                       variable
+                       (optima:match variable
+                         ((list* variable rest)
+                          (list* `(,variable ,(traverse-tree
+                                               type
+                                               (lambda (node)
+                                                 (cond ((eq interface-name node)
+                                                        instance-type)
+                                                       (t
+                                                        node)))))
+                                 rest))
+                         (_
+                          `(,variable ,(traverse-tree type
+                                                      (lambda (node)
+                                                        (cond ((eq interface-name node)
+                                                               instance-type)
+                                                              (t
+                                                               node))))))))))
 
 (defun interface-return-type (interface-name instance-type return-type)
-  (cond ((eq interface-name return-type)
-         instance-type)
-        (t
-         return-type)))
+  (traverse-tree return-type
+                 (lambda (node)
+                   (cond ((eq interface-name node)
+                          instance-type)
+                         (t
+                          node)))))
 
 (defmacro define-interface-instance
     (interface-name type &body interface-function-definitions)
