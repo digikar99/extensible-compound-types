@@ -200,9 +200,13 @@
       `(%array ,element-type ,(length dim/rank) ,dim/rank cl:*)
       `(%array ,element-type ,dim/rank cl:* cl:*)))
 (define-type simple-array (&optional (element-type 'cl:*) (dim/rank 'cl:*))
-  (if (consp dim/rank)
-      `(%array ,element-type ,(length dim/rank) ,dim/rank t)
-      `(%array ,element-type ,dim/rank cl:* t)))
+  (etypecase dim/rank
+    (cons
+     `(%array ,element-type ,(length dim/rank) ,dim/rank t))
+    (integer
+     `(%array ,element-type ,dim/rank ,(make-list dim/rank :initial-element 'cl:*) t))
+    ((eql cl:*)
+     `(%array ,element-type ,dim/rank cl:* t))))
 
 (define-type vector (&optional (element-type 'cl:*) (size 'cl:*))
   `(array ,element-type (,size)))
@@ -237,8 +241,8 @@
            (typep (cdr o) cdr-typespec)))
   :subtypep-lambda
   (lambda (t1 t2)
-    (destructuring-bind (&optional (car1 'cl:*) (cdr1 'cl:*)) t1
-      (destructuring-bind (&optional (car2 'cl:*) (cdr2 'cl:*)) t2
+    (destructuring-bind (&optional (car1 'cl:*) (cdr1 'cl:*)) (rest (ensure-list t1))
+      (destructuring-bind (&optional (car2 'cl:*) (cdr2 'cl:*)) (rest (ensure-list t2))
         (cond ((eql car2 'cl:*)
                (values t t))
               ((eql car1 'cl:*)
@@ -261,8 +265,8 @@
                        (values nil nil)))))))))
   :intersect-type-p-lambda
   (lambda (t1 t2)
-    (destructuring-bind (&optional (car1 'cl:*) (cdr1 'cl:*)) t1
-      (destructuring-bind (&optional (car2 'cl:*) (cdr2 'cl:*)) t2
+    (destructuring-bind (&optional (car1 'cl:*) (cdr1 'cl:*)) (rest (ensure-list t1))
+      (destructuring-bind (&optional (car2 'cl:*) (cdr2 'cl:*)) (rest (ensure-list t2))
         (cond ((or (eql car1 'cl:*) (eql car2 'cl:*)
                    (eql cdr1 'cl:*) (eql cdr2 'cl:*))
                (values t t))
@@ -361,7 +365,6 @@
 ;; trivial-extensible-sequences, the one in extensible-sequences,
 ;; or something else?!
 (define-type sequence () `(or vector list))
-
 
 #+sbcl
 (define-orthogonally-specializing-type sb-c::lvar () ())

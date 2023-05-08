@@ -10,9 +10,11 @@
   `(and ,@(mapcar (lambda (type) (upgraded-cl-type type env)) (rest type))))
 
 (define-compound-type-compiler-macro and (o-form &rest type-specifier-forms)
-  (once-only (o-form)
-    `(cl:and ,@(loop :for type-specifier-form :in type-specifier-forms
-                     :collect `(typep ,o-form ,type-specifier-form)))))
+  (if type-specifier-forms
+      (once-only (o-form)
+        `(cl:and ,@(loop :for type-specifier-form :in type-specifier-forms
+                         :collect `(typep ,o-form ,type-specifier-form))))
+      '(cl:and)))
 
 (define-type t () `(and))
 
@@ -25,9 +27,11 @@
   `(or ,@(mapcar (lambda (type) (upgraded-cl-type type env)) (rest type))))
 
 (define-compound-type-compiler-macro or (o-form &rest type-specifier-forms)
-  (once-only (o-form)
-    `(cl:or ,@(loop :for type-specifier-form :in type-specifier-forms
-                    :collect `(typep ,o-form ,type-specifier-form)))))
+  (if type-specifier-forms
+      (once-only (o-form)
+        `(cl:or ,@(loop :for type-specifier-form :in type-specifier-forms
+                        :collect `(typep ,o-form ,type-specifier-form))))
+      '(cl:or)))
 
 (define-type nil () `(or))
 
