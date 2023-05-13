@@ -101,7 +101,10 @@
    #:augment-environment
    #:defstruct
    #:defclass)
-  )
+  ;; extras
+  (:export
+   #:imlet
+   #:imlet*))
 
 (defpackage :extensible-compound-types-cl.impl
   (:use :cl-environments-cl)

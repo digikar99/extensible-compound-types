@@ -1,4 +1,3 @@
-
 (defsystem "extensible-compound-types-cl"
   :depends-on ("alexandria"
                "cl-form-types"
@@ -13,6 +12,7 @@
   :components ((:file "package")
                (:file "special-forms")
                (:file "macros")
+               (:file "extras")
                (:file "misc")))
 
 (defsystem "extensible-compound-types-cl/specializable-structs"
