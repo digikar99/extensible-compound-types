@@ -1,0 +1,84 @@
+#+title: Interfaces
+
+The =extensible-compound-types-interfaces= system intends to provide facilities similar to a typeclass to allow for defining an interface as an extensible-compound-type that is also a supertype of its instances. This is still an experiment, and thus, use at your own peril!
+
+For instance, the following defines a =SEQUENCE= as an extensible-compound-type:
+
+#+begin_src lisp
+(in-package :extensible-compound-types-interfaces.impl)
+
+(define-interface (interfaces:sequence :cl-type nil) ()
+  (interfaces:seq-ref        (sequence non-negative-integer))
+  ((setf interfaces:seq-ref) (t sequence non-negative-integer))
+  (interfaces:len (sequence) non-negative-integer))
+#+end_src
+
+While the following define =LIST= and =VECTOR= as subtypes of =SEQUENCE=:
+
+#+begin_src lisp
+(define-interface-instance interfaces:sequence list
+  (interfaces:seq-ref (list n)
+    (or (nth n list)
+        (let ((len (length list)))
+          (if (<= len n)
+              (error "Trying to access element ~D in a list of length ~D"
+                     n len)
+              nil))))
+  ((setf interfaces:seq-ref) (new-value list n)
+    (setf (nth n list) new-value))
+  (interfaces:len (list) (length list)))
+
+(define-interface-instance interfaces:sequence vector
+  (interfaces:seq-ref (vec n)
+    (aref vec n))
+  ((setf interfaces:seq-ref) (new-value vec n)
+    (setf (aref vec n) new-value))
+  (interfaces:len (vec) (length vec)))
+#+end_src
+
+The =DEFINE-INTERFACE= form above also defines =SEQ-REF=, =(SETF SEQ-REF)= and =LEN= as [[https://github.com/digikar99/polymorphic-functions][polymorphic-functions]]. While the =DEFINE-INTERFACE-INSTANCE= forms defines the polymorphs for the types =LIST= and =VECTOR= that already existed in the system.
+
+Note that defining the above also enables the following results to be true.
+
+#+begin_src lisp
+(typep '(1 2 3) 'interfaces:sequence) ;=> T
+(typep #(1 2 3) 'interfaces:sequence) ;=> T
+(typep 2 'interfaces:sequence) ;=> NIL
+(subtypep 'list 'interfaces:sequence) ;=> T T
+(subtypep 'vector 'interfaces:sequence) ;=> T T
+(subtypep 'number 'interfaces:sequence) ;=> NIL T
+#+end_src
+
+Each file (other than packages) in this directory defines a separate interface.
+
+* define-interface
+
+#+begin_src lisp
+Macro: (define-interface interface-name dependencies &rest interface-functions)
+#+end_src
+
+Defines a extype =interface-name= whose instances defined using =define-interface-instance= are then subtypes of =interface-name=.
+
+=interface-name= can be a symbol or a list of the form =(interface-name &key (cl-type t))=.
+
+Each of =interface-functions= should be a list of the form
+
+#+begin_src lisp
+  (function-name type-list &optional return-type
+      documentation
+      default-lambda-list
+    &body default-body)
+#+end_src
+
+If =default-lambda-list= and =default-body= is not provided,
+then it will need to be necessarily provided using =define-interface-instance.=
+
+=dependencies= is currently unused.
+
+* define-interface-instance
+
+#+begin_src lisp
+Macro: (define-interface-instance interface-name type &body interface-function-definitions)
+#+end_src
+
+Each of =interface-function-definitions= should be of the form =(name lambda-list &body body)=
