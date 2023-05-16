@@ -47,6 +47,8 @@ Note that defining the above also enables the following results to be true.
 (subtypep 'list 'interfaces:sequence) ;=> T T
 (subtypep 'vector 'interfaces:sequence) ;=> T T
 (subtypep 'number 'interfaces:sequence) ;=> NIL T
+(interface-instance-from-type '(eql nil) 'interfaces:sequence) ;=> LIST
+(interface-instance-from-object nil 'interfaces:sequence) ;=> LIST
 #+end_src
 
 Each file (other than packages) in this directory defines a separate interface.
@@ -82,3 +84,49 @@ Macro: (define-interface-instance interface-name type &body interface-function-d
 #+end_src
 
 Each of =interface-function-definitions= should be of the form =(name lambda-list &body body)=
+
+* interface-instance-from-type
+
+#+begin_src lisp
+Function: (interface-instance-from-type type interface)
+#+end_src
+
+Returns an upgraded type from =type= that actually has a defined
+interface instance with name =interface=.
+
+for example, while =(eql nil)= does not have an interface-instance,
+=list= as obtained from the following function call does have an interface-instance.
+
+#+begin_src lisp
+  (interface-instance-from-type '(eql nil) 'collector) ;=> list
+#+end_src
+
+* interface-instance-from-object
+
+#+begin_src lisp
+Function: (interface-instance-from-object object interface)
+#+end_src
+
+Returns an upgraded type from =object= that actually has a defined
+interface instance with name =interface=.
+
+for example, =list= as obtained from the following function call
+is the =collector= instance corresponding to =nil=.
+
+#+begin_src lisp
+  (interface-instance-from-object nil 'collector) ;=> list
+#+end_src
+
+* with-interface-instances
+
+#+begin_src lisp
+Macro: (with-interface-instances bindings &body body &environment env)
+#+end_src
+
+Each of =bindings= should be of the form =(var interface-name)=.
+
+This macro rebinds each =var= so that its type is derived using
+=interface-instance-from-type= with =type= obtained from the lexical environment.
+
+This is closely related to the notion of principal types in ML-like languages.
+

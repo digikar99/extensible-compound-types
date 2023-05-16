@@ -74,14 +74,14 @@ internal interfaces."
   (let ((interface-name (second type-spec)))
     `(satisfies ,(interface-name-p interface-name))))
 
-(defun interface-instance-from-type (interface type)
+(defun interface-instance-from-type (type interface)
   "Returns an upgraded type from TYPE that actually has a defined
 interface instance with name INTERFACE.
 
-For instance, while (EQL NIL) does not have an interface-instance,
+For example, while (EQL NIL) does not have an interface-instance,
 LIST as obtained from the following function call does have an interface-instance.
 
-  (INTERFACE-INSTANCE-FROM-TYPE 'COLLECTOR '(EQL NIL)) ;=> LIST
+  (INTERFACE-INSTANCE-FROM-TYPE '(EQL NIL) 'COLLECTOR) ;=> LIST
 
 "
   (let ((instances (interface-instances (if (%interface-p interface)
@@ -91,14 +91,14 @@ LIST as obtained from the following function call does have an interface-instanc
           :if (subtypep type instance)
             :do (return-from interface-instance-from-type instance))))
 
-(defun interface-instance-from-object (interface object)
+(defun interface-instance-from-object (object interface)
   "Returns an upgraded type from OBJECT that actually has a defined
 interface instance with name INTERFACE.
 
-For instance, while NIL does not have an interface-instance, but
-LIST as obtained from the following function call does have an interface-instance.
+For example, LIST as obtained from the following function call
+is the COLLECTOR instance corresponding to NIL.
 
-  (INTERFACE-INSTANCE-FROM-OBJECT 'COLLECTOR NIL) ;=> LIST
+  (INTERFACE-INSTANCE-FROM-OBJECT NIL 'COLLECTOR) ;=> LIST
 
 "
   (let ((instances (interface-instances (if (%interface-p interface)
@@ -109,9 +109,9 @@ LIST as obtained from the following function call does have an interface-instanc
             :do (return-from interface-instance-from-object instance))))
 
 (defmacro with-interface-instances (bindings &body body &environment env)
-  "Each BINDING should be of the form (VAR INTERFACE-NAME)
+  "Each of BINDINGS should be of the form (VAR INTERFACE-NAME)
 
-Rebinds each VAR so that its type is derived using
+This macro rebinds each VAR so that its type is derived using
   INTERFACE-INSTANCE-FROM-TYPE with TYPE obtained from the lexical environment.
 
 This is closely related to the notion of principal types in ML-like languages."
@@ -121,7 +121,7 @@ This is closely related to the notion of principal types in ML-like languages."
                       :collect
                       (let ((var-type (cl-form-types:nth-form-type var env 0 t t)))
                         (list 'type
-                              (or (interface-instance-from-type interface var-type) t)
+                              (or (interface-instance-from-type var-type interface) t)
                               var))))
      ,@body))
 
