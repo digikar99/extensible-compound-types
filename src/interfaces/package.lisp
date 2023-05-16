@@ -42,10 +42,18 @@
            #:do-iterator
            #:reduce-iterator
 
+           #:collect
+           #:collector
+           #:queue
+           #:make-queue
+
            #:iterable
            #:at
            #:first-key
-           #:next-key))
+           #:next-key
+           #:map-to-collector
+           #:filter-to-collector
+           ))
 
 (defpackage :extensible-compound-types-interfaces.impl
   (:use :polymorphic-functions
@@ -78,6 +86,11 @@
                 #:divide
                 #:one-like
                 #:zero-like
+
+                #:collector
+                #:collect
+                #:queue
+                #:make-queue
 
                 #:iterable
                 #:at

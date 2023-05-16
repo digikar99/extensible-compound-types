@@ -5,17 +5,6 @@
   (first-key (iterable)   (values t boolean &optional))
   (next-key  (iterable t) (values t boolean &optional)))
 
-(defpolymorph map-iterable (function (it iterable)) t
-  (loop :with key := (first-key it)
-        :for elt := (locally (declare (optimize (safety 0)))
-                      (at it key))
-        :do (funcall function elt)
-            (multiple-value-bind (%key %validp)
-                (next-key it key)
-              (if %validp
-                  (setq key %key)
-                  (return-from map-iterable)))))
-
 (define-interface-instance iterable list
   (at (list key)
     (declare (ignore list))
@@ -40,7 +29,7 @@
 (defun map-vector/iterable (function vector)
   (declare (optimize speed)
            (type (vector t) vector))
-  (map-iterable function vector))
+  (interfaces:map-to-list function vector))
 
 (defun map-vector/native (function vector)
   (declare (optimize speed)
@@ -49,3 +38,31 @@
         :do (funcall function elt)))
 
 |#
+
+(defpolymorph interfaces:map-to-collector (collector function (it iterable)) t
+  (with-interface-instances ((collector collector))
+    (loop :with key := (first-key it)
+          :do (setq collector
+                    (collect collector
+                      (multiple-value-call
+                          function
+                        (locally (declare (optimize (safety 0)))
+                          (at it key)))))
+              (multiple-value-bind (%key %validp)
+                  (next-key it key)
+                (if %validp
+                    (setq key %key)
+                    (return-from interfaces:map-to-collector collector))))))
+
+(defpolymorph interfaces:filter-to-collector (collector function (it iterable)) t
+  (with-interface-instances ((collector collector))
+    (loop :with key := (first-key it)
+          :do (imlet ((value (locally (declare (optimize))
+                               (at it key))))
+                (when (funcall function value)
+                  (setq collector (collect collector value))))
+              (multiple-value-bind (%key %validp)
+                  (next-key it key)
+                (if %validp
+                    (setq key %key)
+                    (return-from interfaces:filter-to-collector collector))))))
