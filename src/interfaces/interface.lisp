@@ -296,16 +296,25 @@ DEPENDENCIES is currently unused.
            (set-difference all-functions interface-function-definitions
                            :key #'first :test #'equal))
          (required-function-names
-           (mapcar #'first required-functions)))
+           (mapcar #'first required-functions))
+         (instance-position   (gensym "INSTANCE-POSITION"))
+         (interface-instances (gensym "INTERFACE-INSTANCES")))
     (unless (subsetp required-function-names implemented-function-names :test #'equal)
       ;; TODO: Make the error more informative
       (error 'incompatible-interface-instance
              :expected required-function-names :actual implemented-function-names))
     `(with-eval-always
-       ;; FIXME: A better way to do this than just pushing
-       ;;   Insert INTERFACE-NAME at the right place, because
-       ;;   INTERFACE-INSTANCE-FROM-OBJECT and -FROM-TYPE exist
-       (pushnew ',type (interface-instances (interface ',interface-name)))
+       (let ((,interface-instances
+               (interface-instances (interface ',interface-name))))
+         (unless (member ',type ,interface-instances)
+           (let ((,instance-position (position ',type ,interface-instances
+                                               :test #'subtypep)))
+             (setf (interface-instances (interface ',interface-name))
+                   (if ,instance-position
+                       (append (subseq ,interface-instances 0 ,instance-position)
+                               (list ',type)
+                               (subseq ,interface-instances ,instance-position))
+                       (append ,interface-instances (list ',type)))))))
        ,@(loop :for interface-function-definition
                  :in interface-function-definitions
                :collect (destructuring-bind (name lambda-list &body body)
