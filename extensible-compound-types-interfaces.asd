@@ -9,4 +9,5 @@
                (:file "sequence")
                (:file "array-like")
                (:file "iterable")
-               (:file "field")))
+               (:file "field")
+               (:file "iterator")))

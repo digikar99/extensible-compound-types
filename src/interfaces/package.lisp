@@ -29,6 +29,16 @@
            #:1+
            #:1-
 
+           #:iterator
+           #:define-iterator
+           #:iterator-next
+           #:list-iterator
+           #:vector-iterator
+           #:map-iterator
+           #:filter-iterator
+           #:do-iterator
+           #:reduce-iterator
+
            #:iterable
            #:at
            #:first-key
