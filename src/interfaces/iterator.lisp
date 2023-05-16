@@ -2,10 +2,65 @@
 
 ;;; Idea credits: commander-trashdin / Andrew
 
-(defstruct interfaces:iterator)
-(define-polymorphic-function interfaces:iterator-next (interfaces:iterator) :overwrite t)
+(defstruct interfaces:iterator
+  "A base class for defining lazy iterators. Define using DEFINE-ITERATOR.
+Use using ITERATOR-NEXT.")
+(define-polymorphic-function interfaces:iterator-next (interfaces:iterator) :overwrite t
+  :documentation "This takes in an iterator and returns two values: the second value should
+be NIL only when the iterator has reached the end of iteration.
+
+Polymorphs for this should be defined using DEFINE-ITERATOR rather than directly.")
 
 (defmacro interfaces:define-iterator (name (slots specializers) read-only-slots &body body)
+  "Defines a lazy iterator NAME that can be used by repeatedly calling ITERATOR-NEXT
+
+Effectively, this defines
+- a structure
+- an orthogonally-specializing-type for the structure:
+    see EXTENSIBLE-COMPOUND-TYPES:DEFINE-ORTHOGONALLY-SPECIALIZING-TYPE
+    for more details about this
+- a constructor wrapper around the base structure using the ortho-type
+- an ITERATOR-NEXT polymorph and its compiler macro with body BODY specializing on NAME
+
+The BODY will have access to the SLOTS through the WITH-SLOTS macro.
+BODY should return two values
+- the first value should be the value the iterator was expected to return,
+while the second value should be a non-NIL if the first value is part of the
+iterator. In particular, if the second value is NIL, the iterator would be
+assumed to have ended.
+
+Examples
+
+```lisp
+
+  (define-iterator list-iterator ((list) ()) ()
+    (if list
+        (values (let ((first (car list)))
+                  (setf list (cdr list))
+                  first)
+                t)
+        (values nil nil)))
+
+  (define-iterator map-iterator
+      ((function iterator) (function iterator))
+      (function iterator)
+    (multiple-value-bind (elt validp) (iterator-next iterator)
+      (values (when validp (funcall function elt)) validp)))
+
+  (define-iterator filter-iterator
+      ((filter-function iterator) (filter-function iterator))
+      (filter-function iterator)
+    (loop do
+      (multiple-value-bind (elt validp) (iterator-next iterator)
+        (cond ((and validp
+                    (funcall filter-function elt))
+               (return (values elt t)))
+              ((not validp)
+               (return (values nil nil)))))))
+```
+
+See src/interfaces/iterator.lisp for more examples.
+"
   (let ((make-function-name (intern (uiop:strcat "MAKE-" (symbol-name name))))
         (env (gensym "ENV")))
     `(eval-when (:compile-toplevel :load-toplevel :execute)
