@@ -4,6 +4,9 @@
   (:export #:interface
            #:define-interface
            #:define-interface-instance
+           #:interface-instance-from-object
+           #:interface-instance-from-type
+           #:with-interface-instances
 
            #:eq
            #:=
@@ -58,6 +61,9 @@
                 #:interface
                 #:define-interface
                 #:define-interface-instance
+                #:interface-instance-from-object
+                #:interface-instance-from-type
+                #:with-interface-instances
 
                 #:array-like
                 #:element-type

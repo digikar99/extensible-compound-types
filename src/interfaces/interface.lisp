@@ -74,6 +74,57 @@ internal interfaces."
   (let ((interface-name (second type-spec)))
     `(satisfies ,(interface-name-p interface-name))))
 
+(defun interface-instance-from-type (interface type)
+  "Returns an upgraded type from TYPE that actually has a defined
+interface instance with name INTERFACE.
+
+For instance, while (EQL NIL) does not have an interface-instance,
+LIST as obtained from the following function call does have an interface-instance.
+
+  (INTERFACE-INSTANCE-FROM-TYPE 'COLLECTOR '(EQL NIL)) ;=> LIST
+
+"
+  (let ((instances (interface-instances (if (%interface-p interface)
+                                            interface
+                                            (interface interface)))))
+    (loop :for instance :in instances
+          :if (subtypep type instance)
+            :do (return-from interface-instance-from-type instance))))
+
+(defun interface-instance-from-object (interface object)
+  "Returns an upgraded type from OBJECT that actually has a defined
+interface instance with name INTERFACE.
+
+For instance, while NIL does not have an interface-instance, but
+LIST as obtained from the following function call does have an interface-instance.
+
+  (INTERFACE-INSTANCE-FROM-OBJECT 'COLLECTOR NIL) ;=> LIST
+
+"
+  (let ((instances (interface-instances (if (%interface-p interface)
+                                            interface
+                                            (interface interface)))))
+    (loop :for instance :in instances
+          :if (typep object instance)
+            :do (return-from interface-instance-from-object instance))))
+
+(defmacro with-interface-instances (bindings &body body &environment env)
+  "Each BINDING should be of the form (VAR INTERFACE-NAME)
+
+Rebinds each VAR so that its type is derived using
+  INTERFACE-INSTANCE-FROM-TYPE with TYPE obtained from the lexical environment.
+
+This is closely related to the notion of principal types in ML-like languages."
+  `(let (,@(loop :for (var interface) :in bindings
+                 :collect `(,var ,var)))
+     (declare ,@(loop :for (var interface) :in bindings
+                      :collect
+                      (let ((var-type (cl-form-types:nth-form-type var env 0 t t)))
+                        (list 'type
+                              (or (interface-instance-from-type interface var-type) t)
+                              var))))
+     ,@body))
+
 (defun interface-name-p (interface-name)
   (intern (let ((name (symbol-name interface-name)))
             (if (find #\- name)
@@ -251,6 +302,9 @@ DEPENDENCIES is currently unused.
       (error 'incompatible-interface-instance
              :expected required-function-names :actual implemented-function-names))
     `(with-eval-always
+       ;; FIXME: A better way to do this than just pushing
+       ;;   Insert INTERFACE-NAME at the right place, because
+       ;;   INTERFACE-INSTANCE-FROM-OBJECT and -FROM-TYPE exist
        (pushnew ',type (interface-instances (interface ',interface-name)))
        ,@(loop :for interface-function-definition
                  :in interface-function-definitions
