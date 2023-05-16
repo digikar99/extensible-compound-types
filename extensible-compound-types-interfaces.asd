@@ -8,6 +8,7 @@
                (:file "eq")
                (:file "sequence")
                (:file "array-like")
+               (:file "collector")
                (:file "iterable")
                (:file "field")
                (:file "iterator")))
