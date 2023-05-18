@@ -75,7 +75,7 @@ Each of =interface-functions= should be a list of the form
 If =default-lambda-list= and =default-body= is not provided,
 then it will need to be necessarily provided using =define-interface-instance.=
 
-=dependencies= is currently unused.
+=dependencies= is a list of super-interfaces for this interface.
 
 * define-interface-instance
 

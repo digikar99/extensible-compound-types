@@ -25,6 +25,8 @@ internal interfaces."
   instances
   dependencies)
 
+;; FIXME: Handle redefinition of dependencies
+
 (defvar *interfaces* (make-hash-table))
 
 (defun interface (interface-name &optional (error-if-not-exists t))
@@ -53,7 +55,10 @@ internal interfaces."
 
 (define-subtypep-lambda (interface interface) (exp1 exp2 env)
   (declare (ignore env))
-  (equal exp1 exp2))
+  (or (equal exp1 exp2)
+      (let ((n1 (first exp1))
+            (n2 (first exp2)))
+        (member n2 (interface-dependencies (interface n1))))))
 
 (define-subtypep-lambda (nil interface) (exp1 exp2 env)
   (declare (ignore env))
@@ -161,7 +166,7 @@ This is closely related to the notion of principal types in ML-like languages."
                                            type
                                            (assoc-value used-type-count name)))))))))
 
-(defmacro define-interface (interface-name dependencies &rest interface-functions)
+(defmacro define-interface (interface-name (&rest dependencies) &rest interface-functions)
   "Defines a extype INTERFACE-NAME whose instances defined using
 DEFINE-INTERFACE-INSTANCE are then subtypes of INTERFACE-NAME.
 
@@ -174,7 +179,7 @@ Each of INTERFACE-FUNCTIONS should be a list of the form
 If DEFAULT-LAMBDA-LIST and DEFAULT-BODY is not provided,
 then it will need to be necessarily provided using DEFINE-INTERFACE-INSTANCE
 
-DEPENDENCIES is currently unused.
+DEPENDENCIES is a list of super-interfaces for this interface.
 "
   (destructuring-bind (interface-name &key (cl-type t))
       (alexandria:ensure-list interface-name)
@@ -190,14 +195,21 @@ DEPENDENCIES is currently unused.
                      :collect (case (length interface-function)
                                 (2 (nconc interface-function '(t)))
                                 (t interface-function))))
+             ;; TODO: Look into how CLOS achieves handles inheritance.
              (required-functions
-               (loop :for interface-function :in interface-functions
-                     :if (cl:<= (length interface-function) 4)
-                     :collect interface-function))
+               (nconc (loop :for interface-function :in interface-functions
+                            :if (cl:<= (length interface-function) 4)
+                              :collect interface-function)
+                      (loop :for interface-name :in dependencies
+                            :nconcing (interface-required-functions
+                                       (interface interface-name)))))
              (default-functions
-               (loop :for interface-function :in interface-functions
-                     :if (cl:>  (length interface-function) 4)
-                     :collect interface-function))
+               (nconc (loop :for interface-function :in interface-functions
+                            :if (cl:>  (length interface-function) 4)
+                              :collect interface-function)
+                      (loop :for interface-name :in dependencies
+                            :nconcing (interface-default-functions
+                                       (interface interface-name)))))
              (interface-name-p (interface-name-p interface-name)))
         (with-gensyms (interface object)
           `(with-eval-always
@@ -303,6 +315,7 @@ DEPENDENCIES is currently unused.
       ;; TODO: Make the error more informative
       (error 'incompatible-interface-instance
              :expected required-function-names :actual implemented-function-names))
+
     `(with-eval-always
        (let ((,interface-instances
                (interface-instances (interface ',interface-name))))
