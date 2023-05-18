@@ -231,8 +231,18 @@ DEPENDENCIES is a list of super-interfaces for this interface.
                ;; FIXME: Handle the case of redefinition
                (namespace-value-and-doc-set
                 ',interface-name ()
-                ,(format nil "A type corresponding to an interface formed by:~%~{  ~S~^~%~}"
-                         interface-functions))
+                ,(with-output-to-string (s)
+                   (pprint-logical-block (s interface-functions)
+                     (format s "A type corresponding to an interface formed by:~%")
+                     (loop :for (name type-list return-type doc)
+                             :in interface-functions
+                           :do (pprint-logical-block (s nil :per-line-prefix "  "
+                                                        :suffix (string #\newline))
+                                 (format s "~S~%" (list name type-list return-type))
+                                 (when doc
+                                   (pprint-logical-block (s nil :per-line-prefix "  "
+                                                                :suffix (string #\newline))
+                                     (format s "~A" doc))))))))
                (setf (extype-structure ',interface-name) ,interface)
                (setf (interface ',interface-name) ,interface)
                ;; FIXME: Validate dependencies
@@ -247,7 +257,11 @@ DEPENDENCIES is a list of super-interfaces for this interface.
                                ,fn-name ,(interface-lambda-list-from-type-list type-list)
                              :overwrite t
                              :documentation
-                             ,(format nil "~A~%~%Part of the interface ~S.~%This interface includes:~%~{  ~S~^~%~}" (or doc "") interface-name interface-functions))
+                             ,(format nil "~A~%~%Part of the interface ~S.~%This interface includes:~%~{  ~S~^~%~}"
+                                      (or doc "")
+                                      interface-name
+                                      (loop :for defn :in interface-functions
+                                            :collect (subseq defn 0 3))))
                            (declaim (cl:ftype ,(upgraded-cl-type
                                                 `(function ,type-list ,return-type))
                                               ,fn-name))
