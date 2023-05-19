@@ -26,6 +26,11 @@
 
   (zero-like (field) field)
 
+  (interfaces:zerop (field) boolean
+      ""
+      (f)
+    (interfaces:= f (zero-like f)))
+
   (interfaces:1+ (field) field
       ""
       (f)

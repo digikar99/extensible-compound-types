@@ -30,6 +30,7 @@
            #:divide
            #:one-like
            #:zero-like
+           #:zerop
            #:1+
            #:1-
 
