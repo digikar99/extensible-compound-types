@@ -23,6 +23,7 @@
            #:dimensions
 
            #:field
+           #:fieldp
            #:add
            #:subtract
            #:multiply
@@ -80,6 +81,7 @@
                 #:row-major-iterator
 
                 #:field
+                #:fieldp
                 #:add
                 #:subtract
                 #:multiply
