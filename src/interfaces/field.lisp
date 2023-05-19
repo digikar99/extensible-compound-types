@@ -47,11 +47,6 @@
     field
   (reduce #'add args :initial-value (add f1 f2)))
 
-(define-interface-instance field integer
-  (divide   (x y) (nth-value 0 (cl:floor x y)))
-  (one-like   (x) (declare (ignore x)) 1)
-  (zero-like  (x) (declare (ignore x)) 0))
-
 (define-interface-instance field rational
   (one-like   (x) (declare (ignore x)) 1)
   (zero-like  (x) (declare (ignore x)) 0))
