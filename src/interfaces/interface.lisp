@@ -114,17 +114,20 @@ is the COLLECTOR instance corresponding to NIL.
             :do (return-from interface-instance-from-object instance))))
 
 (defmacro with-interface-instances (bindings &body body &environment env)
-  "Each of BINDINGS should be of the form (VAR INTERFACE-NAME)
+  "Each of BINDINGS should be of the form (INTERFACE-NAME VAR &OPTIONAL BINDING-FORM)
 
-This macro rebinds each VAR so that its type is derived using
+This macro binds or rebinds each VAR so that its type is derived using
   INTERFACE-INSTANCE-FROM-TYPE with TYPE obtained from the lexical environment.
 
 This is closely related to the notion of principal types in ML-like languages."
-  `(let (,@(loop :for (var interface) :in bindings
-                 :collect `(,var ,var)))
-     (declare ,@(loop :for (var interface) :in bindings
+  `(let (,@(loop :for (interface var binding-form) :in bindings
+                 :collect `(,var ,(or binding-form var))))
+     (declare ,@(loop :for (interface var binding-form) :in bindings
                       :collect
-                      (let ((var-type (cl-form-types:nth-form-type var env 0 t t)))
+                      (let ((var-type
+                              (cl-form-types:nth-form-type
+                               (or binding-form var)
+                               env 0 t t)))
                         (list 'type
                               (or (interface-instance-from-type var-type interface) t)
                               var))))

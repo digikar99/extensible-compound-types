@@ -123,9 +123,9 @@ is the =collector= instance corresponding to =nil=.
 Macro: (with-interface-instances bindings &body body &environment env)
 #+end_src
 
-Each of =bindings= should be of the form =(var interface-name)=.
+Each of =bindings= should be of the form =(interface-name var &optional binding-form)=.
 
-This macro rebinds each =var= so that its type is derived using
+This macro binds or rebinds each =var= so that its type is derived using
 =interface-instance-from-type= with =type= obtained from the lexical environment.
 
 This is closely related to the notion of principal types in ML-like languages.
