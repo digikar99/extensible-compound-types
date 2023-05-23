@@ -166,7 +166,7 @@ This is closely related to the notion of principal types in ML-like languages."
                                            type
                                            (assoc-value used-type-count name)))))))))
 
-(defmacro define-interface (interface-name (&rest dependencies) &rest interface-functions)
+(defmacro define-interface (interface-name (&rest dependencies) &body interface-functions)
   "Defines a extype INTERFACE-NAME whose instances defined using
 DEFINE-INTERFACE-INSTANCE are then subtypes of INTERFACE-NAME.
 
