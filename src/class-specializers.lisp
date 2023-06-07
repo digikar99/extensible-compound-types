@@ -365,12 +365,16 @@ object's value.
                                   `(,(ignore-all-form-from-lambda-list slot-lambda-list)
                                     `(specializing ,',class ,@(rest ,whole))))
                     :class-name ',class
-                    :lambda (lambda (,object-var ,@slot-lambda-list)
-                              (and (cl:typep ,object-var ',class)
-                                   ,@slot-type-forms))
-                    :lambda-expression '(lambda (,object-var ,@slot-lambda-list)
-                                         (and (cl:typep ,object-var ',class)
-                                          ,@slot-type-forms))
+                    :lambda
+                    (lambda (,object-var ,@slot-lambda-list)
+                      (and (cl:typep ,object-var ',class)
+                           (locally (declare (type ,class ,object-var))
+                             (and ,@slot-type-forms))))
+                    :lambda-expression
+                    `(lambda (,',object-var ,@',slot-lambda-list)
+                       (and (cl:typep ,',object-var ',',class)
+                            (locally (declare (type ,',class ,',object-var))
+                              (and ,@',slot-type-forms))))
                     :subtypep-lambda 'orthogonal-subtypep-lambda
                     :intersectp-lambda 'orthogonal-intersect-type-p-lambda
                     :to-cl-type ,to-cl-type
