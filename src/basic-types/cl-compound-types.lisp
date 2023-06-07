@@ -196,12 +196,16 @@
                          rank)))))
 
 (define-type array (&optional (element-type 'cl:*) (dim/rank 'cl:*))
-  (if (consp dim/rank)
-      `(%array ,element-type ,(length dim/rank) ,dim/rank cl:*)
-      `(%array ,element-type ,dim/rank cl:* cl:*)))
+  (etypecase dim/rank
+    (list
+     `(%array ,element-type ,(length dim/rank) ,dim/rank cl:*))
+    (integer
+     `(%array ,element-type ,dim/rank ,(make-list dim/rank :initial-element 'cl:*) cl:*))
+    ((eql cl:*)
+     `(%array ,element-type ,dim/rank cl:* cl:*))))
 (define-type simple-array (&optional (element-type 'cl:*) (dim/rank 'cl:*))
   (etypecase dim/rank
-    (cons
+    (list
      `(%array ,element-type ,(length dim/rank) ,dim/rank t))
     (integer
      `(%array ,element-type ,dim/rank ,(make-list dim/rank :initial-element 'cl:*) t))
