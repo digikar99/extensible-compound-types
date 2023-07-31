@@ -315,7 +315,8 @@
     (flet ((may-be-upgraded-cl-type (typespec)
              (cond ((member typespec lambda-list-keywords)
                     (setq state typespec))
-                   ((eq state '&key)
+                   ((and (listp typespec)
+                         (eq state '&key))
                     `(,(first typespec) ,(upgraded-cl-type (second typespec))))
                    (t
                     (upgraded-cl-type typespec)))))

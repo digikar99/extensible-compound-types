@@ -18,8 +18,7 @@
   (interfaces:len (list) (length list)))
 
 (define-interface-instance interfaces:sequence vector
-  (interfaces:seq-ref (vec n)
-                      (aref vec n))
+  (interfaces:seq-ref (vec n) (aref vec n))
   ((setf interfaces:seq-ref) (new-value vec n)
-   (setf (aref vec n) new-value))
+    (setf (aref vec n) new-value))
   (interfaces:len (vec) (length vec)))

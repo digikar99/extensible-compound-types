@@ -398,7 +398,7 @@ object's value.
 
 (defun orthogonally-specializing-type-of (object)
   "Returns the ORTHOGONALLY-SPECIALIZING-TYPE of the object."
-  (with-extype-name-and-expansion (name exp) (print (clhs-class-from-object object))
+  (with-extype-name-and-expansion (name exp) (clhs-class-from-object object)
     (assert (eq name 'specializing))
     (let ((ocs (class-specializer (second exp))))
       (cl:check-type ocs orthogonal-class-specializer)
