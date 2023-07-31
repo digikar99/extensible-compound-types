@@ -87,9 +87,20 @@
              (values intersectp knownp))))))
 
 (define-intersect-type-p-lambda (nil and) (type2 type1 env)
-  (multiple-value-bind (intersectp knownp)
-      (intersect-type-p type1 type2 env)
-    (values intersectp knownp)))
+  (with-extype-name-and-expansion (name exp) type2
+    (let ((fn1 (primitive-intersect-type-p-lambda 'and name))
+          (fn2 (primitive-intersect-type-p-lambda 'and nil)))
+      (when fn1
+        (multiple-value-bind (intersectp knownp)
+            (funcall fn1 type1 type2 env)
+          (when knownp
+            (return-from intersect-type-p (values intersectp knownp)))))
+      (when fn2
+        (multiple-value-bind (intersectp knownp)
+            (funcall fn2 type1 type2 env)
+          (when knownp
+            (return-from intersect-type-p (values intersectp knownp)))))
+      (values nil nil))))
 
 (define-intersect-type-p-lambda (not nil) (t1 t2 env)
   ;; Simplify, by removing the NOT
