@@ -2,9 +2,10 @@
 
 ;;; Idea credits: commander-trashdin / Andrew
 
-(defstruct interfaces:iterator
-  "A base class for defining lazy iterators. Define using DEFINE-ITERATOR.
-Use using ITERATOR-NEXT.")
+(with-eval-always
+  (defstruct interfaces:iterator
+    "A base class for defining lazy iterators. Define using DEFINE-ITERATOR.
+Use using ITERATOR-NEXT."))
 (define-polymorphic-function interfaces:iterator-next (interfaces:iterator) :overwrite t
   :documentation "This takes in an iterator and returns two values: the second value should
 be NIL only when the iterator has reached the end of iteration.

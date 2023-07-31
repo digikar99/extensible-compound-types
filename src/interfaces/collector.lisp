@@ -9,10 +9,10 @@
         (cons (car new-elements) list)
         (error "A LIST collector can only collect a single element at a time."))))
 
-(defstruct queue storage end-of-storage)
-
-(defmethod print-object ((o queue) s)
-  (format s "#Q~S" (queue-storage o)))
+(with-eval-always
+  (defstruct queue storage end-of-storage)
+  (defmethod print-object ((o queue) s)
+    (format s "#Q~S" (queue-storage o))))
 
 (define-interface-instance collector queue
   (collect (queue &rest new-elements)
