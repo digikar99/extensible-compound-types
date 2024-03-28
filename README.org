@@ -1,9 +1,24 @@
+#+title: Extensible Compound Types
 
-* Previous Version
+/extensible-compound-types has been abandoned in favour of a more integrated [[https://gitlab.com/digikar/peltadot/][peltadot]]./
 
-See the tag [[https://github.com/digikar99/extensible-compound-types/releases/tag/2022.09/][2022.09]].
+#+begin_quote
+=extensible-compound-types= allows for the definition of user-defined [[http://www.lispworks.com/documentation/lw70/CLHS/Body/26_glo_c.htm#compound_type_specifier][compound-types]]. Built-in compound types include =(vector &optional element-type)= or =(integer &optional lower-limit higher-limit)=. These are types with parameters however, these are not parametric types in the Haskell/ML sense. Here, as in CL, but unlike in ML, the type parameters are values that can sometimes be treated as types.
+
+If it works for you, great! But don't say "it works" until you get things working on a large enough project. This is an alpha-stage experimental library. Use at your own risk.
+#+end_quote
+
+Common Lisp has a rich type system allowing for the combination of types using NOT AND OR MEMBER VALUES, specifying EQL types, or even completely arbitrary types using SATISFIES. 
+
+Through [[http://www.lispworks.com/documentation/lw70/CLHS/Body/26_glo_c.htm#compound_type_specifier][compound-types]], it even allows for specification of the exact integer or float through (NUM-TYPE LOW HIGH), or the exact dimensions of a vector or array through (ARRAY-TYPE ELEMENT-TYPE RANK/DIMENSIONS). This allows compilers to type-check and optimize the code, besides also enhancing readability for the developer reading the code. 
+
+However, CLHS does not provide facilities for cleanly defining user-defined compound-types. Such types could include a (EQUALP OBJECT) type, a (TYPE= TYPE), or a (PAIR TYPE-1 TYPE-2) type, or (CUSTOM-ARRAY ELEMENT-TYPE DIMENSIONS).
+
+While it might seem like [[http://clhs.lisp.se/Body/m_deftp.htm][CL:DEFTYPE]] allows for the definition of compound types, these types are what CLHS calls [[http://clhs.lisp.se/Body/26_glo_d.htm#derived_type][derived type]] specifiers, mere abbreviations and simple combinations of existing types. The most one can do is play around with SATISFIES types. However, not only do SATISFIES types not integrate well into rest of the type system, but they are also restricted to single argument functions that only take the object to be type-checked as their argument and no more parameters or arguments than that. See the [[#example-code][Example Code]] for an example of a type that is non-trivial (if not impossible!) to define using CL:DEFTYPE.
 
 * Continuing Motivation
+
+This is the second iteration of this library. (The previous version is tagged as [[https://github.com/digikar99/extensible-compound-types/releases/tag/2022.09/][2022.09]].)
 
 After a maintainably-failed attempt at a previous version of extensible-compound-types, and some learnt lessons, here is the second attempt for extensible-compound-types.
 
